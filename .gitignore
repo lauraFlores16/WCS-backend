@@ -1,0 +1,11 @@
+__pycache__/
+*.pyc
+.venv/
+venv/
+.env
+db_sin_usar.sqlite3
+/almacen_datos/*.json
+/.cache/*
+!.cache/.gitkeep
+.env
+.env.example

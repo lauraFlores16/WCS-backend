@@ -3,7 +3,8 @@
 CALIBRACIÓN AUTOMÁTICA DE LAS CONSTANTES K — puerto de motor/calibracion.js
 ============================================================================
 Evolución diferencial (DE/rand/1/bin) contra los perímetros reales de NASA
-FIRMS (2021, 2023, 2024). Ver la explicación larga en el .js original o en
+FIRMS (2021, 2023, 2024). Adaptada al motor v3 (propagación por velocidad):
+nuevos genes y serie ambiental horaria además del viento. Ver la explicación larga en el .js original o en
 MEJORAS.md — aquí solo cambia el lenguaje, no el método.
 ============================================================================
 """
@@ -17,19 +18,37 @@ from typing import Callable, Optional
 from ..almacen.db import guardar_calibracion as _persistir_calibracion
 from ..almacen.db import leer_calibracion as leer_calibracion  # noqa: F401  (re-export)
 from ..servicios.grid import obtener_indice
-from ..servicios.meteo import obtener_serie_viento_historica
+from ..servicios.meteo import obtener_serie_ambiental_historica, obtener_serie_viento_historica
 from .automata import CONSTANTES_POR_DEFECTO, perimetro_simulado
 
 MINUTOS_POR_ITERACION = 15
+# Focos de arranque: detecciones de las primeras 6 h del evento, igual que en
+# la validación (f11/f13). Antes se usaba el primer DÍA completo: el modelo
+# arrancaba con medio incendio ya encendido y esas celdas se excluían de la
+# métrica, lo que premiaba simulaciones que apenas crecían.
+HORAS_FOCOS_INICIALES = 6
 
 GENES = {
-    "p_base": (0.02, 0.80, False),
-    "K_PENDIENTE_ARRIBA": (0.50, 8.00, False),
-    "K_PENDIENTE_ABAJO": (0.10, 4.00, False),
-    "K_VIENTO": (0.02, 0.60, False),
-    "K_HUMEDAD": (0.10, 1.50, False),
-    "RESIDENCIA_MAX": (2, 10, True),
-    "SPOTTING_PROB": (0.000, 0.060, False),
+    # MOTOR v3 (propagación por velocidad). Los genes cambian de significado
+    # respecto de v2, así que los rangos se redefinen desde la física:
+    #
+    # p_base: escala de la velocidad de avance. ROS_base = p_base · 100 m/h.
+    #   0,01–1,0 → 1–100 m/h antes de viento, pendiente y humedad; cubre desde
+    #   fuego de hojarasca bajo dosel hasta pastizal seco. El techo coincide con
+    #   el recorte que ya aplica parametros.py (0,01–1).
+    "p_base": (0.01, 1.00, False),
+    # Viento: exp(K·v·cos θ). Con 3 m/s, K = 0,6 da ×6 a favor y ÷6 en contra.
+    "K_VIENTO": (0.00, 0.60, False),
+    "K_PENDIENTE_ARRIBA": (0.00, 8.00, False),
+    "K_PENDIENTE_ABAJO": (0.00, 4.00, False),
+    # Humedad de extinción del combustible fino (Rothermel). Literatura para
+    # hojarasca y pastos tropicales: 0,15–0,40.
+    "HUMEDAD_EXTINCION": (0.15, 0.40, False),
+    # Peso de la humedad del suelo del grid sobre la del combustible.
+    "K_HUMEDAD": (0.00, 1.50, False),
+    "NDVI_BARRERA": (0.05, 0.30, False),
+    "K_BARRERA": (0.00, 1.00, False),
+    "SPOTTING_PROB": (0.000, 0.050, False),
 }
 NOMBRES = list(GENES.keys())
 
@@ -78,7 +97,7 @@ def construir_perimetros_reales(grid: list[dict], focos: list[dict], ventana_dia
             continue
         celdas = set()
         celda_foco = None
-        t_primer_dia = en_ventana[0]["t"] + ms_dia
+        t_primer_dia = en_ventana[0]["t"] + HORAS_FOCOS_INICIALES * 3600
         iniciales = {}
         ids_iniciales = set()
         for f in en_ventana:
@@ -172,15 +191,10 @@ def _genes_a_parametros(vector: list[float]) -> dict:
 
 
 def _evaluar(vector: list[float], grid: list[dict], perimetros: list[dict], semillas: list[int],
-             elevacion=None, barreras_extra=None) -> dict:
+             elevacion=None, barreras_extra=None, resistencia_extra=None) -> dict:
     g = _genes_a_parametros(vector)
-    constantes = {
-        **CONSTANTES_POR_DEFECTO,
-        "K_PENDIENTE_ARRIBA": g["K_PENDIENTE_ARRIBA"], "K_PENDIENTE_ABAJO": g["K_PENDIENTE_ABAJO"],
-        "K_VIENTO": g["K_VIENTO"], "K_HUMEDAD": g["K_HUMEDAD"],
-        "RESIDENCIA_MAX": max(g["RESIDENCIA_MAX"], CONSTANTES_POR_DEFECTO["RESIDENCIA_MIN"]),
-        "SPOTTING_PROB": g["SPOTTING_PROB"],
-    }
+    # Todos los genes salvo p_base son constantes del motor.
+    constantes = {**CONSTANTES_POR_DEFECTO, **{n_: v for n_, v in g.items() if n_ != "p_base"}}
 
     suma, n = 0.0, 0
     detalle = []
@@ -197,12 +211,18 @@ def _evaluar(vector: list[float], grid: list[dict], perimetros: list[dict], semi
                     "num_iteraciones": per["pasos"], "minutos_por_iteracion": MINUTOS_POR_ITERACION,
                     "multiplicador_viento": 1, "delta_humedad": 0, "delta_temperatura_c": 0,
                     "semilla": semilla, "serie_viento": per.get("serieViento"),
+                    "serie_ambiental": per.get("serieAmbiental"),
+                    "inicio_utc": per.get("desde"),
                 },
                 {"constantes": constantes, "elevacion": elevacion, "barreras_extra": barreras_extra,
+                 "resistencia_extra": resistencia_extra,
                  "limite_celdas": len(per["celdas"]) * 8},
             )
             m = comparar_perimetros(sim, per["celdas"], excluir=per["ids_iniciales"], dilatar_set=per["dilatar"])
-            castigo = 3 / m["razon_area"] if m["razon_area"] > 3 else 1
+            # Castigo simétrico: quemar 3 veces de más o 3 veces de menos
+            # cuesta lo mismo. Antes solo se castigaba el exceso.
+            r_ = m["razon_area"]
+            castigo = 3 / r_ if r_ > 3 else (r_ * 3 if r_ < 1 / 3 else 1)
             f1_evento += m["f1"] * castigo
             if metricas is None:
                 metricas = m
@@ -217,9 +237,18 @@ def _evaluar(vector: list[float], grid: list[dict], perimetros: list[dict], semi
 def calibrar(grid: list[dict], focos: list[dict], poblacion: int = 12, generaciones: int = 10,
              f_de: float = 0.7, cr: float = 0.9, ventana_dias: int = 4,
              on_progreso: Optional[Callable[[float, Optional[dict]], None]] = None,
-             elevacion=None, barreras_extra=None, semillas: Optional[list[int]] = None,
+             elevacion=None, barreras_extra=None, resistencia_extra=None,
+             semillas: Optional[list[int]] = None,
              usar_viento_historico: bool = True) -> dict:
-    semillas = semillas or [1, 2]
+    # CINCO semillas, no dos. El autómata es estocástico: medido sobre Apolo,
+    # cambiar solo la semilla mueve el resultado un 47 % (108 → 159 celdas).
+    # Con dos semillas el RUIDO de la aptitud es del mismo orden que la
+    # diferencia real entre dos individuos, así que la evolución diferencial
+    # acaba seleccionando por azar. Cinco lo reduce a menos de la mitad.
+    #
+    # Cuesta 2,5 veces más tiempo, y es un precio que merece la pena: una
+    # calibración rápida pero guiada por ruido no es una calibración.
+    semillas = semillas or [1, 2, 3, 4, 5]
     perimetros = construir_perimetros_reales(grid, focos, ventana_dias=ventana_dias)
 
     if usar_viento_historico:
@@ -232,6 +261,16 @@ def calibrar(grid: list[dict], focos: list[dict], poblacion: int = 12, generacio
                         celda_foco["lat"], celda_foco["lon"], per["desde"], per["hasta"])
             except Exception as e:  # noqa: BLE001
                 print(f"Sin viento histórico para {per['evento']}: {e}")
+            # Serie ambiental (temperatura y humedad relativa horarias): es la
+            # que da el ciclo día/noche de la humedad del combustible en v3.
+            # Antes la calibración solo recibía viento y la validación solo
+            # clima: corrían en mundos distintos.
+            try:
+                if celda_foco:
+                    per["serieAmbiental"] = obtener_serie_ambiental_historica(
+                        celda_foco["lat"], celda_foco["lon"], str(per["desde"])[:10], str(per["hasta"])[:10])
+            except Exception as e:  # noqa: BLE001
+                print(f"Sin serie ambiental para {per['evento']}: {e}")
 
     if not perimetros:
         raise RuntimeError(
@@ -244,10 +283,12 @@ def calibrar(grid: list[dict], focos: list[dict], poblacion: int = 12, generacio
         return minimo + random.random() * (maximo - minimo)
 
     pob = [[azar(i) for i in range(dim)] for _ in range(poblacion)]
-    pob[0] = [0.30 if nombre == "p_base" else CONSTANTES_POR_DEFECTO.get(nombre, azar(NOMBRES.index(nombre)))
+    pob[0] = [0.30 if nombre == "p_base" else
+              min(max(CONSTANTES_POR_DEFECTO.get(nombre, azar(NOMBRES.index(nombre))), GENES[nombre][0]), GENES[nombre][1])
               for nombre in NOMBRES]
 
-    puntajes = [_evaluar(ind, grid, perimetros, semillas, elevacion, barreras_extra) for ind in pob]
+    puntajes = [_evaluar(ind, grid, perimetros, semillas, elevacion, barreras_extra,
+                          resistencia_extra) for ind in pob]
     mejor_idx = max(range(poblacion), key=lambda i: puntajes[i]["aptitud"])
 
     historia = [{"generacion": 0, "mejor": puntajes[mejor_idx]["aptitud"]}]
@@ -273,7 +314,8 @@ def calibrar(grid: list[dict], focos: list[dict], poblacion: int = 12, generacio
                 else:
                     prueba.append(v)
 
-            res = _evaluar(prueba, grid, perimetros, semillas, elevacion, barreras_extra)
+            res = _evaluar(prueba, grid, perimetros, semillas, elevacion,
+                           barreras_extra, resistencia_extra)
             if res["aptitud"] > puntajes[i]["aptitud"]:
                 pob[i] = prueba
                 puntajes[i] = res
@@ -303,6 +345,8 @@ def calibrar(grid: list[dict], focos: list[dict], poblacion: int = 12, generacio
             for p in perimetros
         ],
         "minutos_por_iteracion": MINUTOS_POR_ITERACION,
+        "modelo": "velocidad_v3",
+        "genes": list(NOMBRES),
     }
 
     _persistir_calibracion(resultado)

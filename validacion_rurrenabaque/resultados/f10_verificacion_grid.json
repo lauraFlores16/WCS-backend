@@ -1,0 +1,17 @@
+{
+  "archivo": "..\\datos\\rurrenabaque_grid_500m.csv",
+  "celdas": 10429,
+  "paso_lat": 0.0045,
+  "paso_lon": 0.0045,
+  "lat_origen": -14.3415,
+  "lon_origen": -67.563,
+  "fila_crece_al_sur": true,
+  "columna_crece_al_este": true,
+  "tam_celda_ns_m": 497.6,
+  "tam_celda_eo_m": 484.6,
+  "fallos": [],
+  "avisos": [
+    "`ndvi` en un rango comparable al de Apolo: Apolo 0.1–0.444 · aquí -0.061–0.905 (mediana 0.709)",
+    "El viento llega a 3.68 m/s y supera SPOTTING_VIENTO_MIN = 1,0. El spotting SE VA A DISPARAR, y el motor tiene el signo norte-sur del salto invertido."
+  ]
+}

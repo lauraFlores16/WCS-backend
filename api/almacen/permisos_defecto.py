@@ -13,6 +13,11 @@ PERMISOS = [
     {"id": "gestionar_usuarios", "etiqueta": "Gestionar usuarios", "descripcion": "Acceso al CRUD de usuarios"},
     {"id": "configuracion", "etiqueta": "Configuración del sistema", "descripcion": "Acceso a la configuración general"},
     {"id": "ver_bitacora", "etiqueta": "Ver bitácora", "descripcion": "Acceso al registro de actividades"},
+    # --- Reporte de campo del brigadista -----------------------------------
+    {"id": "reportar_incendio", "etiqueta": "Reportar incendio",
+     "descripcion": "Crear reportes de campo desde el monitoreo (brigadista)"},
+    {"id": "ver_reportes_campo", "etiqueta": "Ver reportes de campo",
+     "descripcion": "Consultar los reportes enviados por los brigadistas"},
 ]
 
 ROLES = ["administrador", "analista", "ugr", "brigada"]
@@ -29,6 +34,7 @@ ROLES = ["administrador", "analista", "ugr", "brigada"]
 PERMISOS_OPERATIVOS = {
     "ver_monitoreo", "ver_variables", "ver_focos",
     "consultar_probabilidad", "ejecutar_simulacion", "ver_simulaciones",
+    "reportar_incendio", "ver_reportes_campo",
 }
 
 MATRIZ_DEFECTO = {
@@ -39,16 +45,42 @@ MATRIZ_DEFECTO = {
         "ver_monitoreo": True, "ver_variables": True, "ver_focos": True,
         "consultar_probabilidad": True, "ejecutar_simulacion": True, "ver_simulaciones": True,
         "generar_reportes": True, "gestionar_usuarios": False, "configuracion": False, "ver_bitacora": False,
+        # Consulta los reportes de campo, pero no los crea: el analista está en
+        # gabinete, el brigadista en el terreno.
+        "reportar_incendio": False, "ver_reportes_campo": True,
     },
     "ugr": {
         "ver_monitoreo": True, "ver_variables": True, "ver_focos": True,
         "consultar_probabilidad": True, "ejecutar_simulacion": False, "ver_simulaciones": True,
         "generar_reportes": True, "gestionar_usuarios": False, "configuracion": False, "ver_bitacora": False,
+        # La UGR los consulta como información de apoyo. Solo lectura: no crea
+        # ni modifica reportes de campo.
+        "reportar_incendio": False, "ver_reportes_campo": True,
     },
+    # -----------------------------------------------------------------------
+    # BRIGADISTA — acceso restringido a Inicio y Monitoreo
+    # -----------------------------------------------------------------------
+    # Su trabajo es estar en el terreno y reportar lo que ve. No opera el
+    # modelo ni administra nada, así que todo lo técnico y administrativo le
+    # queda cerrado: simulación, escenarios, historial, comparación, reportes,
+    # usuarios, configuración y bitácora.
+    #
+    # `ver_simulaciones` estaba en True y se ha cerrado: daba acceso al
+    # historial de escenarios y a la pantalla de comparación, que son
+    # funciones técnicas del modelo.
+    #
+    # Se le dejan `ver_focos` y `ver_variables` porque son lo que hace útil el
+    # mapa de Monitoreo: sin ellos vería un mapa vacío y no podría situar lo
+    # que está viendo en campo.
     "brigada": {
         "ver_monitoreo": True, "ver_variables": True, "ver_focos": True,
-        "consultar_probabilidad": False, "ejecutar_simulacion": False, "ver_simulaciones": True,
-        "generar_reportes": False, "gestionar_usuarios": False, "configuracion": False, "ver_bitacora": False,
+        "consultar_probabilidad": False, "ejecutar_simulacion": False,
+        "ver_simulaciones": False, "generar_reportes": False,
+        "gestionar_usuarios": False, "configuracion": False, "ver_bitacora": False,
+        # Lo único que puede CREAR en todo el sistema.
+        "reportar_incendio": True,
+        # Ve los reportes en el mapa, incluidos los suyos.
+        "ver_reportes_campo": True,
     },
 }
 

@@ -1,0 +1,16 @@
+experimento,descripcion,mediana_km2,min_km2,max_km2,cambio_vs_base_pct,apagadas_solas,semillas
+base,Tal cual la validación,1.75,1.25,2.25,0.0,0,10
+sin_viento,Viento × 0,1.0,0.75,1.5,-42.9,0,10
+viento_x3,Viento × 3,5.5,4.75,6.0,214.3,0,10
+sin_clima,Sin clima horario ERA5 (sin ciclo día/noche),1.75,1.25,2.25,0.0,0,10
+k_hum_0,K_HUMEDAD = 0 (sin efecto de la humedad del suelo),1.88,1.5,2.5,7.1,0,10
+humedad_alta,"Humedad del suelo = 0,45 en todo el grid",1.62,1.25,2.0,-7.1,0,10
+humedad_baja,"Humedad del suelo = 0,15 en todo el grid",2.62,2.0,3.25,50.0,0,10
+sin_pendiente,K_PENDIENTE arriba y abajo = 0,1.62,1.25,2.0,-7.1,0,10
+ndvi_03,"NDVI = 0,30 en todo el grid (rango de Apolo)",1.0,0.75,1.25,-42.9,0,10
+sin_spotting,Sin saltos de pavesas,1.75,1.25,2.25,0.0,0,10
+sin_ambiente,"Sin viento, sin humedad, sin pendiente, sin clima, sin saltos",1.0,0.75,1.5,-42.9,0,10
+pbase_x2,p_base × 2 = 0.4752,4.25,3.5,4.75,142.9,0,10
+pbase_x1_5,p_base × 1.5 = 0.3564,3.0,2.5,3.5,71.4,0,10
+pbase_x0_5,p_base × 0.5 = 0.1188,1.0,0.75,1.25,-42.9,0,10
+pbase_x0_25,p_base × 0.25 = 0.0594,0.75,0.75,0.75,-57.1,0,10

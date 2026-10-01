@@ -1,0 +1,19 @@
+Indicador,Resultado
+Evento,E122
+Periodo,2023-11-11 a 2023-11-15
+Focos iniciales,3
+Repeticiones,30
+Celdas evaluadas,"9,849"
+Celdas excluidas (sin dato),580
+Área observada (km²),7.25
+Área simulada (km²),1494.50
+Diferencia (km²),+1487.25
+Error de área (%),20513.79
+IoU,0.0042
+Precision,0.0042
+Recall,0.8621
+F1-score,0.0083
+Accuracy (complementaria),0.3952
+Error angular (°),40.17
+Distancia entre centroides (km),12.705
+Comportamiento,SOBREESTIMACIÓN

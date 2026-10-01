@@ -1,0 +1,18 @@
+{
+  "zona": "rurrenabaque",
+  "evento": {
+    "desde": "2023-11-11",
+    "hasta": "2023-11-15"
+  },
+  "celdas": 10429,
+  "fuentes": {
+    "elevacion": "SRTM 30 m vía OpenTopoData",
+    "pendiente": "derivada del DEM por diferencias finitas",
+    "humedad": "ERA5-Land soil_moisture_0_to_7cm (m³/m³), media del evento",
+    "viento": "ERA5-Land 10 m, promedio vectorial u/v",
+    "ndvi": "Sentinel-2 L2A 2023-10-10..2023-10-20 vía AWS · 7.1 % nubes · escena mosaico de S2A_19LFE_20231015_0_L2A, S2B_19LFE_20231010_0_L2A, S2B_19LFD_20231010_0_L2A, S2A_19LGD_20231015_0_L2A, S2A_19LFE_20231018_0_L2A, S2A_19LFD_20231015_0_L2A, S2A_19LGE_20231015_0_L2A, S2A_19LFD_20231018_0_L2A, S2B_19LFD_20231020_0_L2A"
+  },
+  "celdas_completas": 10429,
+  "variables_faltantes": [],
+  "_nota_prob_ignicion": "0 en todas las celdas: XGBoost se entrenó con Apolo y no se aplica aquí."
+}

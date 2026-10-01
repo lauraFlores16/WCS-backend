@@ -1,0 +1,55 @@
+{
+  "municipio": "Rurrenabaque",
+  "departamento": "Beni",
+  "evento": "E122",
+  "periodo": "2023-11-11 a 2023-11-15",
+  "fecha_calculo": "2026-09-30T07:36:13.069872+00:00",
+  "armonizacion": {
+    "clave": "id",
+    "celdas_observado": 10429,
+    "celdas_simulado": 10429,
+    "solo_en_observado": 0,
+    "solo_en_simulado": 0,
+    "en_ambos": 10429
+  },
+  "celdas_totales_cruzadas": 10429,
+  "celdas_excluidas_sin_dato": 580,
+  "celdas_evaluadas": 9849,
+  "tp": 25,
+  "fp": 5953,
+  "fn": 4,
+  "tn": 3867,
+  "iou": 0.0042,
+  "precision": 0.0042,
+  "recall": 0.8621,
+  "f1": 0.0083,
+  "accuracy": 0.3952,
+  "area_observada_km2": 7.25,
+  "area_simulada_km2": 1494.5,
+  "diferencia_area_km2": 1487.25,
+  "error_area_pct": 20513.79,
+  "comportamiento": "SOBREESTIMACIÓN",
+  "distancia_centroides_km": 12.705,
+  "centroide_observado": {
+    "lat": -14.600483,
+    "lon": -67.213707
+  },
+  "centroide_simulado": {
+    "lat": -14.673253,
+    "lon": -67.305019
+  },
+  "origen_focos": {
+    "lat": -14.58151,
+    "lon": -67.212207
+  },
+  "angulo_observado_grados": 184.4,
+  "angulo_simulado_grados": 224.57,
+  "error_angular_grados": 40.17,
+  "error_angular_con_signo": 40.17,
+  "_lectura_signo": "positivo = el simulado se desvía en sentido horario",
+  "n_repeticiones": 30,
+  "umbral_prob_quemada": 0.5,
+  "p_base": 0.1659,
+  "advertencias": [],
+  "_nota_accuracy": "COMPLEMENTARIA. 3,867 de 9,849 celdas (39.3 %) son TN. No usar como métrica principal."
+}

@@ -154,9 +154,24 @@ def _clasificar(tags: dict) -> str | None:
 RESISTENCIA = {"rio": 0.0, "agua": 0.0, "quebrada": 0.45, "camino": 0.6, "desnudo": 0.1}
 
 
-def obtener_terreno_osm() -> dict:
-    indice = obtener_indice()
-    b = indice["bbox"]
+# Por debajo de esto la celda es INFRANQUEABLE (pasa a INERTE): solo agua.
+# El resto de la capa —caminos 0,6 · quebradas 0,45 · roca desnuda 0,1— ya NO
+# se descarta: viaja al motor como `resistencia` y frena la propagación de
+# forma proporcional. Antes de esto, todo lo que no fuera agua se calculaba y
+# se tiraba, así que una carretera no hacía absolutamente nada.
+UMBRAL_BARRERA_DURA = 0.05
+
+
+def obtener_terreno_osm(bbox: dict | None = None,
+                        grid: list[dict] | None = None) -> dict:
+    """Capa de terreno de OpenStreetMap.
+
+    `bbox` elige la zona; `grid` la rejilla sobre la que rasterizar. Sin `grid`
+    se usa el índice global, que es el de Apolo: la validación externa de
+    Rurrenabaque tiene que pasar el suyo o las carreteras y los ríos no caerían
+    en ninguna celda.
+    """
+    b = bbox or obtener_indice()["bbox"]
     clave = f"osm:{b['sur']:.3f},{b['oeste']:.3f},{b['norte']:.3f},{b['este']:.3f}"
 
     def producir():
@@ -203,7 +218,7 @@ def obtener_terreno_osm() -> dict:
 
     r = con_cache_tolerante(clave, settings.TTL_SEGUNDOS["osm"], producir)
 
-    rasterizado = _rasterizar(r.valor)
+    rasterizado = _rasterizar(r.valor, grid)
     rasterizado["procedencia"] = {
         "origen": r.origen,
         "edad_minutos": round(r.edad_ms / 60000),
@@ -213,14 +228,43 @@ def obtener_terreno_osm() -> dict:
     return rasterizado
 
 
-def _rasterizar(elementos: list[dict]) -> dict:
-    indice = obtener_indice()
+def _indice_local(grid: list[dict]) -> dict:
+    """Índice mínimo para rasterizar sobre una rejilla que no es la global."""
+    filas = sorted({int(c["fila"]) for c in grid})
+    cols = sorted({int(c["columna"]) for c in grid})
+    lat_por_fila = {int(c["fila"]): float(c["lat"]) for c in grid}
+    lon_por_col = {int(c["columna"]): float(c["lon"]) for c in grid}
+    paso_lat = (abs(lat_por_fila[filas[0]] - lat_por_fila[filas[-1]])
+                / max(len(filas) - 1, 1)) or 0.0045
+    paso_lon = (abs(lon_por_col[cols[0]] - lon_por_col[cols[-1]])
+                / max(len(cols) - 1, 1)) or 0.0045
+    ref = grid[0]
+    return {
+        "paso_lat": paso_lat, "paso_lon": paso_lon,
+        "ref": {"fila": int(ref["fila"]), "columna": int(ref["columna"]),
+                "lat": float(ref["lat"]), "lon": float(ref["lon"])},
+        "por_fila_col": {f"{int(c['fila'])},{int(c['columna'])}": c for c in grid},
+    }
+
+
+def _rasterizar(elementos: list[dict], grid: list[dict] | None = None) -> dict:
+    if grid:
+        indice = _indice_local(grid)
+
+        def localizar(lat, lon):
+            f = indice["ref"]["fila"] + round((indice["ref"]["lat"] - lat) / indice["paso_lat"])
+            c = indice["ref"]["columna"] + round((lon - indice["ref"]["lon"]) / indice["paso_lon"])
+            return indice["por_fila_col"].get(f"{f},{c}")
+    else:
+        indice = obtener_indice()
+        localizar = celda_en
+
     resistencia: dict[str, float] = {}
     clases: dict[str, str] = {}
     conteo: dict[str, int] = {}
 
     def marcar(lat, lon, tipo):
-        celda = celda_en(lat, lon)
+        celda = localizar(lat, lon)
         if not celda:
             return
         r = RESISTENCIA.get(tipo, 1)
@@ -241,7 +285,7 @@ def _rasterizar(elementos: list[dict]) -> dict:
                 for k in range(1, min(pasos, 400)):
                     marcar(la + (lb - la) * k / pasos, lo + (lob - lo) * k / pasos, el["t"])
 
-    barreras = [id_ for id_, r in resistencia.items() if r <= 0.05]
+    barreras = [id_ for id_, r in resistencia.items() if r <= UMBRAL_BARRERA_DURA]
 
     return {
         "resistencia": resistencia, "clases": clases, "barreras": barreras,

@@ -288,6 +288,96 @@ def listar_bitacora() -> list[dict]:
 
 
 # ===========================================================================
+# Reportes de campo de los brigadistas
+# ===========================================================================
+# SE GUARDAN EN `bitacora`, NO EN UNA TABLA NUEVA
+#
+# El esquema de la base no se toca —ni CREATE TABLE, ni ALTER, ni migraciones—
+# y `bitacora` encaja sin forzar nada:
+#
+#   · su CHECK de `tipo` YA admite 'report', así que no hay que ampliarlo;
+#   · `usuario`, `fecha` y `detalle` cubren quién, cuándo y qué;
+#   · el resto del reporte (coordenadas, estado observado, foto) va serializado
+#     en `detalle`, que es TEXT.
+#
+# Un reporte de campo es, conceptualmente, una entrada de registro con más
+# datos: alguien vio algo, en un sitio, a una hora. Que quepa en la bitácora no
+# es un apaño, es que es lo que es.
+#
+# POR QUÉ NO EN `alertas`, QUE PARECERÍA LO NATURAL
+#   Su columna `origen` tiene un CHECK que solo admite 'simulacion' y 'riesgo'.
+#   Meter 'reporte_campo' exigiría un ALTER TABLE, y eso está descartado.
+#
+# LIMITACIÓN QUE HAY QUE CONOCER
+#   La fotografía se guarda como data URI dentro de `detalle`. El frontend la
+#   reduce antes de enviarla (lado mayor 1024 px, JPEG al 70 %), lo que deja
+#   unos 150-250 KB. Es aceptable para un volumen de reportes moderado, pero
+#   no escala a miles: para eso haría falta Supabase Storage y una columna con
+#   la URL, y eso sí sería un cambio de esquema.
+ACCION_REPORTE = "reporte_incendio"
+
+
+def crear_reporte_campo(reporte: dict) -> dict:
+    """Guarda un reporte de campo. Devuelve el reporte tal como queda."""
+    import json as _json
+
+    cuerpo = {
+        "lat": reporte.get("lat"),
+        "lon": reporte.get("lon"),
+        "estado": reporte.get("estado"),
+        "descripcion": reporte.get("descripcion"),
+        "foto": reporte.get("foto"),
+        "brigadista": reporte.get("brigadista"),
+        "rol": reporte.get("rol"),
+        "revision": "pendiente",
+    }
+    fecha = _ahora_iso()
+    sb.insertar("bitacora", {
+        "fecha": fecha,
+        "usuario": reporte.get("brigadista"),
+        "accion": ACCION_REPORTE,
+        "detalle": _json.dumps(cuerpo, ensure_ascii=False),
+        "tipo": "report",
+    })
+    return {**cuerpo, "fecha": fecha}
+
+
+def listar_reportes_campo(limite: int = 300) -> list[dict]:
+    """Los reportes de campo, del más reciente al más antiguo.
+
+    Se filtra por `accion` además de por `tipo`, porque en la bitácora hay
+    otras entradas de tipo 'report' —la generación de informes, por ejemplo—
+    que no son reportes de campo.
+    """
+    import json as _json
+
+    filas = sb.select(
+        "bitacora",
+        f"select=*&tipo=eq.report&accion=eq.{ACCION_REPORTE}"
+        f"&order=fecha.desc&limit={int(limite)}")
+    salida = []
+    for f in filas:
+        try:
+            cuerpo = _json.loads(f.get("detalle") or "{}")
+        except (ValueError, TypeError):
+            # Una entrada corrupta no debe tumbar la lista entera: se salta y
+            # se deja constancia.
+            cuerpo = {"descripcion": "(reporte ilegible)", "_corrupto": True}
+        salida.append({
+            "id": f.get("id"),
+            "fecha": f.get("fecha"),
+            "brigadista": cuerpo.get("brigadista") or f.get("usuario"),
+            "lat": cuerpo.get("lat"),
+            "lon": cuerpo.get("lon"),
+            "estado": cuerpo.get("estado"),
+            "descripcion": cuerpo.get("descripcion"),
+            "foto": cuerpo.get("foto"),
+            "revision": cuerpo.get("revision", "pendiente"),
+        })
+    return salida
+
+
+# ===========================================================================
 # Informes
 # ===========================================================================
 def guardar_informe(informe: dict) -> dict:

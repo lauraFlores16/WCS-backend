@@ -1,0 +1,121 @@
+{
+  "_aviso": "Auditoría EN MUESTRA: XGBoost se entrenó con estos mismos focos. No sirve como métrica de rendimiento para la memoria —esa hay que citarla del notebook, con su partición de prueba— pero sí detecta problemas de calibración.",
+  "celdas": 36390,
+  "focos_historicos": 18345,
+  "focos_fuera_del_grid": 5254,
+  "celdas_con_fuego": 5620,
+  "prevalencia_observada": 0.154438,
+  "probabilidad_media_predicha": 0.251619,
+  "razon_prediccion_prevalencia": 1.629,
+  "discriminacion": {
+    "auc_roc": 0.968
+  },
+  "error": {
+    "brier": 0.07794,
+    "brier_referencia": 0.13059,
+    "brier_skill_score": 0.40313
+  },
+  "calibracion": {
+    "ece": 0.09718,
+    "mce": 0.42783,
+    "curva_fiabilidad": [
+      {
+        "bin": 0,
+        "desde": 0.0,
+        "hasta": 0.1,
+        "n": 22154,
+        "p_media": 0.0157,
+        "frecuencia": 0.0012,
+        "desvio": -0.0144
+      },
+      {
+        "bin": 1,
+        "desde": 0.1,
+        "hasta": 0.2,
+        "n": 1891,
+        "p_media": 0.1434,
+        "frecuencia": 0.0137,
+        "desvio": -0.1297
+      },
+      {
+        "bin": 2,
+        "desde": 0.2,
+        "hasta": 0.30000000000000004,
+        "n": 1065,
+        "p_media": 0.2473,
+        "frecuencia": 0.0357,
+        "desvio": -0.2117
+      },
+      {
+        "bin": 3,
+        "desde": 0.30000000000000004,
+        "hasta": 0.4,
+        "n": 875,
+        "p_media": 0.3479,
+        "frecuencia": 0.0549,
+        "desvio": -0.2931
+      },
+      {
+        "bin": 4,
+        "desde": 0.4,
+        "hasta": 0.5,
+        "n": 903,
+        "p_media": 0.4489,
+        "frecuencia": 0.0775,
+        "desvio": -0.3714
+      },
+      {
+        "bin": 5,
+        "desde": 0.5,
+        "hasta": 0.6000000000000001,
+        "n": 966,
+        "p_media": 0.5532,
+        "frecuencia": 0.1573,
+        "desvio": -0.3959
+      },
+      {
+        "bin": 6,
+        "desde": 0.6000000000000001,
+        "hasta": 0.7000000000000001,
+        "n": 1272,
+        "p_media": 0.6519,
+        "frecuencia": 0.2241,
+        "desvio": -0.4278
+      },
+      {
+        "bin": 7,
+        "desde": 0.7000000000000001,
+        "hasta": 0.8,
+        "n": 1930,
+        "p_media": 0.7546,
+        "frecuencia": 0.4316,
+        "desvio": -0.323
+      },
+      {
+        "bin": 8,
+        "desde": 0.8,
+        "hasta": 0.9,
+        "n": 3021,
+        "p_media": 0.8524,
+        "frecuencia": 0.6885,
+        "desvio": -0.1639
+      },
+      {
+        "bin": 9,
+        "desde": 0.9,
+        "hasta": 1.0,
+        "n": 2313,
+        "p_media": 0.9381,
+        "frecuencia": 0.8911,
+        "desvio": -0.047
+      }
+    ]
+  },
+  "recalibracion_isotonica": {
+    "brier": 0.0506,
+    "ece": 0.0,
+    "auc_roc": 0.968,
+    "_nota": "La isotónica es monótona: conserva el orden y por tanto el AUC exacto. Corrige solo la escala. NO es reentrenar.",
+    "tabla": "xgboost_recalibrado.csv"
+  }
+}

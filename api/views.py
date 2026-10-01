@@ -241,6 +241,19 @@ def auth_logout(request: HttpRequest):
 # AMBIENTE — Capa 1 (terreno), Capa 2 (meteorología), Capa 3 (FIRMS)
 # ===========================================================================
 @require_http_methods(["GET"])
+def ambiente_focos_historicos(request: HttpRequest):
+    """Focos históricos del proyecto. Fuente distinta de NASA FIRMS."""
+    try:
+        return bien(firms.obtener_focos_historicos(
+            zona=request.GET.get("zona", "apolo"),
+            limite=int(request.GET.get("limite", 2000)),
+            desde=request.GET.get("desde") or None,
+            hasta=request.GET.get("hasta") or None))
+    except Exception as e:  # noqa: BLE001
+        return mal(e)
+
+
+@require_http_methods(["GET"])
 def ambiente_meteo(request: HttpRequest):
     try:
         lat = _num(request.GET.get("lat"), settings.APOLO["lat"])
@@ -265,7 +278,8 @@ def ambiente_climatologia(request: HttpRequest):
 @require_http_methods(["GET"])
 def ambiente_firms(request: HttpRequest):
     try:
-        datos = firms.obtener_focos_activos()
+        zona = request.GET.get("zona", "apolo")
+        datos = firms.obtener_focos_activos(zona)
         return bien(datos, procedencia=datos["procedencia"])
     except Exception as e:  # noqa: BLE001
         return mal(e)
@@ -421,6 +435,7 @@ def consola_iniciar(request: HttpRequest):
             opciones={
                 "elevacion": entorno["elevacion"],
                 "barreras_extra": entorno["barreras_extra"],
+                "resistencia_extra": entorno["resistencia_extra"],
                 "serie_viento": entorno["serie_viento"],
                 "serie_ambiental": entorno["serie_ambiental"],
                 "constantes": entorno["constantes"],
@@ -657,10 +672,42 @@ def calibracion_vista(request: HttpRequest):
                 estado_calib["progreso"] = f
                 estado_calib["mejor"] = mejor["aptitud"] if mejor else None
 
+            # EL MUNDO DE LA CALIBRACIÓN TIENE QUE SER EL DE LA SIMULACIÓN.
+            # Antes esta llamada no pasaba `elevacion` ni `barreras_extra`, así
+            # que el optimizador buscaba los parámetros en un municipio sin
+            # relieve y sin ríos, y esos parámetros se aplicaban luego a
+            # corridas que sí los tenían. La p_base resultante venía inflada
+            # para compensar unas barreras que durante la calibración no
+            # existían, y esa es una de las causas de la sobreestimación.
+            elevacion_cal = None
+            barreras_cal = None
+            resistencia_cal = None
+            try:
+                osm = terreno.obtener_terreno_osm()
+                barreras_cal = set(osm["barreras"])
+                resistencia_cal = osm["resistencia"]
+                print(f"[calibracion] capa OSM: {len(barreras_cal)} barreras duras, "
+                      f"{len(resistencia_cal)} celdas con resistencia")
+            except Exception as e:  # noqa: BLE001
+                print(f"[calibracion] sin capa OSM, se calibra sin barreras: {e}")
+            try:
+                # DEM centrado en el municipio, con radio amplio: la
+                # calibración recorre varios eventos repartidos por Apolo.
+                ix = grid_srv.obtener_indice()
+                ref = ix.get("ref") or {}
+                dem = terreno.obtener_dem(ref.get("fila", 0), ref.get("columna", 0), 200)
+                elevacion_cal = dem["alturas"]
+                print(f"[calibracion] DEM: {len(elevacion_cal)} celdas con altura")
+            except Exception as e:  # noqa: BLE001
+                print(f"[calibracion] sin DEM, se calibra en terreno plano: {e}")
+
             resultado = calibrar(
                 grid_srv.obtener_grid(), grid_srv.obtener_focos(),
                 poblacion=cuerpo.get("poblacion", 12), generaciones=cuerpo.get("generaciones", 10),
                 on_progreso=on_progreso,
+                elevacion=elevacion_cal,
+                barreras_extra=barreras_cal,
+                resistencia_extra=resistencia_cal,
             )
             almacen_db.registrar_bitacora({
                 "usuario": usuario["nombre"], "accion": "Calibró constantes K",
@@ -724,9 +771,24 @@ def informe_detalle(request: HttpRequest, id_: str):
 # ===========================================================================
 @require_http_methods(["GET", "POST"])
 def usuarios_lista(request: HttpRequest):
-    usuario = auth.verificar_peticion(request)
-    if not usuario:
-        return error_simple("Sesión no válida o expirada", 401)
+    # EL GET PIDE PERMISO, no solo sesión.
+    #
+    # Antes solo comprobaba que hubiera una sesión válida, así que CUALQUIER
+    # usuario autenticado podía listar todas las cuentas del sistema: correos,
+    # nombres y roles. Lo destapó la prueba del brigadista: un rol que no debe
+    # tocar nada administrativo obtenía la lista entera con un GET a mano.
+    #
+    # Ocultar la pantalla en el menú no servía de nada, porque la restricción
+    # estaba en la interfaz y no en el servidor. Ahora exige
+    # `gestionar_usuarios`, que es el mismo permiso que habilita la pantalla.
+    #
+    # Solo lo usan las pantallas de administración (Gestión de usuarios y el
+    # tablero del administrador), y ambas ya requieren ese permiso, así que
+    # no se rompe nada.
+    denegado = auth.exigir_permiso(request, "gestionar_usuarios")
+    if denegado:
+        return denegado
+    usuario = request.usuario
 
     if request.method == "GET":
         return bien(almacen_db.listar_usuarios())
@@ -848,6 +910,84 @@ def permisos_vista(request: HttpRequest):
 def historicos(request: HttpRequest):
     return bien(grid_srv.obtener_historicos())
 
+
+# ===========================================================================
+# Reportes de campo de los brigadistas
+# ===========================================================================
+# Tamaño máximo de la foto ya codificada en base64. 400 KB de data URI son
+# unos 300 KB de imagen, que es de sobra para una foto reducida a 1024 px.
+# El límite existe porque el reporte se guarda en una columna de texto: sin
+# tope, una foto de 8 MP la reventaría y perderíamos el reporte entero.
+LIMITE_FOTO_B64 = 400_000
+
+ESTADOS_OBSERVADOS = {"humo_visible", "fuego_activo", "area_quemada"}
+
+
+@require_http_methods(["GET", "POST"])
+def reportes_campo(request: HttpRequest):
+    """Reportes de incendio enviados desde el terreno.
+
+    CONTROL DE ACCESO, por permiso y no por nombre de rol
+        GET   `ver_reportes_campo`  → brigadista, analista y UGR
+        POST  `reportar_incendio`   → SOLO el brigadista
+
+    Que el POST pida un permiso distinto del GET es lo que impide que el
+    analista o la UGR creen o alteren reportes: la UGR los consulta como
+    información de apoyo y nada más. Y se comprueba en el SERVIDOR, no solo
+    ocultando el botón, porque ocultar un botón no es control de acceso.
+    """
+    if request.method == "GET":
+        denegado = auth.exigir_permiso(request, "ver_reportes_campo")
+        if denegado:
+            return denegado
+        return bien(almacen_db.listar_reportes_campo())
+
+    # --- POST: crear un reporte --------------------------------------------
+    denegado = auth.exigir_permiso(request, "reportar_incendio")
+    if denegado:
+        return denegado
+
+    usuario = auth.verificar_peticion(request)
+    cuerpo = cuerpo_json(request)
+
+    # --- Validación --------------------------------------------------------
+    try:
+        lat = float(cuerpo.get("lat"))
+        lon = float(cuerpo.get("lon"))
+    except (TypeError, ValueError):
+        return error_simple(
+            "Hacen falta las coordenadas del reporte: márcalas en el mapa o "
+            "escríbelas a mano.", 400)
+
+    if not (-90 <= lat <= 90 and -180 <= lon <= 180):
+        return error_simple("Las coordenadas están fuera de rango.", 400)
+
+    estado = (cuerpo.get("estado") or "").strip()
+    if estado not in ESTADOS_OBSERVADOS:
+        return error_simple(
+            f"El estado observado tiene que ser uno de: "
+            f"{', '.join(sorted(ESTADOS_OBSERVADOS))}.", 400)
+
+    descripcion = (cuerpo.get("descripcion") or "").strip()
+    if len(descripcion) > 1000:
+        descripcion = descripcion[:1000]
+
+    foto = cuerpo.get("foto") or None
+    if foto:
+        if not isinstance(foto, str) or not foto.startswith("data:image/"):
+            return error_simple("La fotografía no tiene un formato válido.", 400)
+        if len(foto) > LIMITE_FOTO_B64:
+            return error_simple(
+                "La fotografía es demasiado grande. Vuelve a enviarla: la "
+                "aplicación la reduce automáticamente antes de subirla.", 413)
+
+    reporte = almacen_db.crear_reporte_campo({
+        "lat": lat, "lon": lon, "estado": estado,
+        "descripcion": descripcion, "foto": foto,
+        "brigadista": usuario.get("nombre") or usuario.get("email"),
+        "rol": usuario.get("rol"),
+    })
+    return bien({**reporte, "mensaje": "El reporte será enviado para su revisión"})
 
 @require_http_methods(["GET", "POST"])
 def bitacora_vista(request: HttpRequest):

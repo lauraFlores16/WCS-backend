@@ -1,0 +1,81 @@
+{
+  "_fase": "FASE 11",
+  "fecha_ejecucion": "2026-09-30T08:58:41.245457+00:00",
+  "motor": "backend_django/api/motor/automata.py (reutilizado, no copiado)",
+  "grid": {
+    "archivo": "..\\datos\\rurrenabaque_grid_500m.csv",
+    "celdas": 10429
+  },
+  "evento": "E122",
+  "horizonte_horas": 96.4,
+  "pasos": 386,
+  "minutos_por_iteracion": 15,
+  "focos_iniciales": [
+    {
+      "fila": 54,
+      "columna": 78
+    },
+    {
+      "fila": 53,
+      "columna": 78
+    },
+    {
+      "fila": 53,
+      "columna": 77
+    }
+  ],
+  "n_repeticiones": 1,
+  "semillas": [
+    1
+  ],
+  "umbral_prob_quemada": 0.5,
+  "p_base": 0.1659,
+  "fecha_congelacion_parametros": "2026-09-30",
+  "constantes_usadas": {
+    "K_PENDIENTE_ARRIBA": 4.4684,
+    "K_PENDIENTE_ABAJO": 0.1,
+    "PENDIENTE_MAX": 4.0,
+    "K_VIENTO": 0.2206,
+    "EXP_VIENTO": 1.0,
+    "K_TEMPERATURA": 0.01,
+    "K_HUMEDAD": 1.3181,
+    "NDVI_BARRERA": 0.1,
+    "NDVI_BASE": 0.5,
+    "RESIDENCIA_MIN": 3,
+    "RESIDENCIA_MAX": 5,
+    "DECAIMIENTO_FASE": 0.25,
+    "SPOTTING_ACTIVO": true,
+    "SPOTTING_PROB": 0.0438,
+    "SPOTTING_VIENTO_MIN": 1.0,
+    "SPOTTING_DIST_MIN": 2,
+    "SPOTTING_DIST_MAX": 6,
+    "SPOTTING_DISPERSION": 0.35,
+    "K_BARRERA": 1.0,
+    "VECINDAD": "moore",
+    "RADIO_VECINDAD": 1,
+    "EXP_DISTANCIA": 1.0,
+    "K_LLUVIA_PROP": 0.2,
+    "K_LLUVIA_EXT": 0.02,
+    "K_VPD": 0.04,
+    "VPD_REFERENCIA": 1.0,
+    "_nota": "Valores de CONSTANTES_POR_DEFECTO. Si se elige el conjunto calibrado, hay que sustituir los seis genes marcados con (gen) por los de `constantes_asociadas`."
+  },
+  "vecinos_del_motor": 8,
+  "usa_clima_horario": true,
+  "usa_barreras_osm": true,
+  "usa_dem": true,
+  "estadisticos_repeticiones": {
+    "min": 6422,
+    "max": 6422,
+    "media": 6422.0,
+    "desviacion": NaN,
+    "mediana": 6422.0
+  },
+  "celdas_simuladas": 6422,
+  "area_simulada_km2": 1605.5,
+  "eventos_spotting_totales": 181,
+  "sensibilidad_sin_spotting": false,
+  "advertencias": [
+    "El spotting se disparó y el motor invierte su signo norte-sur"
+  ]
+}

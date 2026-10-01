@@ -10,6 +10,7 @@ urlpatterns = [
     path("auth/yo", views.auth_yo),
     path("auth/logout", views.auth_logout),
 
+    path("ambiente/focos-historicos", views.ambiente_focos_historicos),
     path("ambiente/meteo", views.ambiente_meteo),
     path("ambiente/climatologia", views.ambiente_climatologia),
     path("ambiente/firms", views.ambiente_firms),
@@ -51,5 +52,6 @@ urlpatterns = [
 
     path("historicos", views.historicos),
 
+    path("reportes-campo", views.reportes_campo),
     path("bitacora", views.bitacora_vista),
 ]

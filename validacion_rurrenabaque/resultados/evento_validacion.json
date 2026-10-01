@@ -1,0 +1,41 @@
+{
+  "municipio": "Rurrenabaque",
+  "anio": 2023,
+  "evento_id": "E122",
+  "fecha_inicio": "2023-11-11",
+  "fecha_fin": "2023-11-15",
+  "numero_focos": 91,
+  "sensor_principal": "VIIRS_SNPP_SP",
+  "criterio_seleccion": "Elegido a mano (E122) tras revisar continuidad, concentración, duración y disponibilidad de imágenes pre/post.",
+  "_fase": "FASE 4 — evento seleccionado",
+  "continuidad_temporal": 1.0,
+  "continuidad_espacial": 0.51,
+  "frp_promedio_mw": 10.3,
+  "frp_maximo_mw": 155.2,
+  "parametros_agrupamiento": {
+    "algoritmo": "DBSCAN espaciotemporal",
+    "eps_espacial_m": 1500,
+    "eps_temporal_h": 48,
+    "min_muestras": 5
+  },
+  "evento_indice_dbscan": 121,
+  "focos": 91,
+  "inicio_utc": "2023-11-11T17:59:00",
+  "fin_utc": "2023-11-15T18:24:00",
+  "duracion_h": 96.4,
+  "centro": {
+    "lat": -14.596392,
+    "lon": -67.215255
+  },
+  "extension_km": 7.89,
+  "frp_total_mw": 939.8,
+  "frp_max_mw": 155.2,
+  "sensores": "VIIRS_SNPP_SP",
+  "ventana_imagenes_sugerida": {
+    "_nota": "Puntos de partida para la Fase 6. La fecha definitiva depende de qué escena esté libre de nubes; hay que elegirla mirando las imágenes, no aquí.",
+    "pre_hasta": "2023-11-10",
+    "pre_desde": "2023-09-27",
+    "post_desde": "2023-11-20",
+    "post_hasta": "2024-01-14"
+  }
+}

@@ -1,0 +1,23 @@
+{
+  "evento_id": "E122",
+  "inicio_utc": "2023-11-11T17:59:00",
+  "fin_utc": "2023-11-15T18:24:00",
+  "focos": 91,
+  "celdas_huella_firms": 61,
+  "fuente": "MapBiomas Fire Bolivia col.1, anual 2023 (mapbiomas_fire_bolivia_col1_annual_burned_2023_tif_SBV_APolo.img)",
+  "regla": "observado = fracción quemada ≥ 0.5 dentro de la huella FIRMS ± 2 celdas",
+  "celdas_observadas": 29,
+  "area_observada_grid_km2": 7.25,
+  "area_observada_raster_30m_km2": 9.83,
+  "celdas_por_motivo": {
+    "observado": 29,
+    "no_quemado": 9820,
+    "sin_dato": 0,
+    "otro_incendio": 573,
+    "atribucion_dudosa": 7
+  },
+  "celdas_validas": 9849,
+  "celdas_excluidas": 580,
+  "_uso": "REFERENCIA. No entra al autómata.",
+  "_limitacion": "Producto anual: la fecha de cada píxel no se conoce. La atribución al evento se hace por coincidencia con su huella FIRMS."
+}

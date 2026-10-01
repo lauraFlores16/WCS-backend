@@ -30,6 +30,7 @@ def preparar_entorno(parametros: dict, opciones: Optional[dict] = None) -> dict:
     opciones = opciones or {}
     elevacion = None
     barreras_extra = None
+    resistencia_extra = None
     resumen_terreno = None
 
     if opciones.get("usar_terreno", True) is not False:
@@ -42,6 +43,9 @@ def preparar_entorno(parametros: dict, opciones: Optional[dict] = None) -> dict:
         try:
             osm = obtener_terreno_osm()
             barreras_extra = set(osm["barreras"])
+            # La resistencia parcial (caminos, quebradas, roca desnuda) se
+            # calculaba desde siempre y no llegaba al motor. Ahora sí.
+            resistencia_extra = osm["resistencia"]
             resumen_terreno = osm["resumen"]
         except Exception as e:  # noqa: BLE001
             print(f"[simulacion] sin capa OSM: {e}")
@@ -53,6 +57,7 @@ def preparar_entorno(parametros: dict, opciones: Optional[dict] = None) -> dict:
     return {
         "elevacion": elevacion,
         "barreras_extra": barreras_extra,
+        "resistencia_extra": resistencia_extra,
         "constantes": constantes,
         "serie_viento": parametros.get("serie_viento") or opciones.get("serie_viento"),
         # La serie ambiental (temperatura, humedad relativa, VPD y lluvia por
@@ -75,6 +80,7 @@ def ejecutar_simulacion(parametros: dict, opciones: Optional[dict] = None) -> di
     resultado_motor = ejecutar_automata(grid, parametros, {
         "elevacion": entorno["elevacion"],
         "barreras_extra": entorno["barreras_extra"],
+        "resistencia_extra": entorno["resistencia_extra"],
         "serie_viento": entorno["serie_viento"],
         "serie_ambiental": entorno["serie_ambiental"],
         "constantes": constantes,

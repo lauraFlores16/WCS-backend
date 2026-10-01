@@ -172,7 +172,10 @@ APOLO = {"lat": -14.65, "lon": -68.25,
 FIRMS = {
     "clave": os.environ.get("NASA_FIRMS_MAP_KEY", ""),
     "fuente": os.environ.get("NASA_FIRMS_FUENTE", "VIIRS_SNPP_NRT"),
-    "dias": int(os.environ.get("NASA_FIRMS_DIAS", "5")),
+    # 1 = últimas 24 h disponibles. El endpoint de área acepta de 1 a 10 días.
+    # Estaba en 5, que acumulaba detecciones de cinco días y daba sensación de
+    # mapa saturado aunque cada punto fuera real.
+    "dias": int(os.environ.get("NASA_FIRMS_DIAS", "1")),
     "bbox": "-69.05,-15.05,-67.55,-13.95",
 }
 

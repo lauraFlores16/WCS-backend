@@ -1,0 +1,92 @@
+{
+  "_documento": "PARÁMETROS DEL AUTÓMATA CELULAR (MOTOR v3) CONGELADOS PARA LA VALIDACIÓN EXTERNA",
+  "_regla": "Estos valores se fijan ANTES de ejecutar Rurrenabaque y NO se modifican con sus resultados. Si el modelo produce IoU bajo, F1 bajo, sobreestimación o subestimación, SE REPORTA. Reajustarlos mirando las métricas de Rurrenabaque convertiría la validación externa en un ajuste disfrazado y la dejaría sin valor.",
+  "modelo": "velocidad_v3",
+  "origen_parametros": "Calibración por evolución diferencial contra perímetros reales de Apolo (api/motor/calibracion.py), trasladada por congelar_parametros.py",
+  "fecha_congelacion": "2026-09-30",
+  "version_modelo": "Autómata celular v3 — propagación por velocidad de avance (ROS)",
+  "area_calibracion": "Apolo, provincia Franz Tamayo, La Paz",
+  "area_validacion": "Rurrenabaque, provincia General José Ballivián, Beni",
+  "p_base": 0.2376,
+  "_p_base_nota": "En v3 p_base es la escala de la velocidad de avance: ROS_base = p_base × 100 m/h. Queda en null hasta recalibrar Apolo con el motor v3; f11 y f13 se niegan a arrancar mientras tanto.",
+  "constantes": {
+    "ROS_REFERENCIA_M_H": 100.0,
+    "K_VIENTO": 0.3403,
+    "VIENTO_MAX": 6.0,
+    "K_PENDIENTE_ARRIBA": 7.9342,
+    "K_PENDIENTE_ABAJO": 2.6317,
+    "PENDIENTE_MAX": 4.0,
+    "NDVI_BARRERA": 0.1856,
+    "NDVI_SATURACION": 0.45,
+    "HUMEDAD_EXTINCION": 0.2629,
+    "K_HUMEDAD": 0.3743,
+    "HUMEDAD_SUELO_REF": 0.3,
+    "HR_REFERENCIA": 0.6,
+    "T_REFERENCIA_C": 28.0,
+    "K_TEMPERATURA": 0.01,
+    "K_VPD": 0.04,
+    "ROS_MIN_M_H": 1.0,
+    "T_ESTANCAMIENTO_H": 6.0,
+    "T_MAX_ARDIENDO_H": 72.0,
+    "RUIDO_CELDA": 0.35,
+    "RUIDO_PASO": 0.25,
+    "K_LLUVIA_PROP": 0.2,
+    "K_LLUVIA_EXT": 0.02,
+    "K_BARRERA": 0.0284,
+    "SPOTTING_ACTIVO": true,
+    "SPOTTING_PROB": 0.0,
+    "SPOTTING_VIENTO_MIN": 1.0,
+    "SPOTTING_DIST_MIN": 2,
+    "SPOTTING_DIST_MAX": 6,
+    "SPOTTING_DISPERSION": 0.35,
+    "VECINDAD": "moore",
+    "RADIO_VECINDAD": 1,
+    "EXP_DISTANCIA": 1.0
+  },
+  "genes_calibrables": [
+    "p_base",
+    "K_VIENTO",
+    "K_PENDIENTE_ARRIBA",
+    "K_PENDIENTE_ABAJO",
+    "HUMEDAD_EXTINCION",
+    "K_HUMEDAD",
+    "NDVI_BARRERA",
+    "K_BARRERA",
+    "SPOTTING_PROB"
+  ],
+  "ejecucion": {
+    "n_repeticiones": 30,
+    "semillas": "1 a n_repeticiones, consecutivas",
+    "minutos_por_iteracion": 15,
+    "umbral_prob_quemada": 0.5,
+    "_umbral_nota": "Fracción de repeticiones en las que la celda debe arder para contarla como quemada. 0,50 es mayoría simple: neutral entre Recall y Precision. NO moverlo después de ver las métricas."
+  },
+  "historial": {
+    "v2": "Primera validación con el motor v2 (probabilístico). Detectó comportamiento de umbral (todo o nada), ciclo día/noche inoperante, viento que no frena y tiempos de combustión de 45–75 min. Parámetros v2 (p_base 0,1659, calibración del 17-08-2026) archivados en parametros_ca_congelados_v2.json."
+  },
+  "metadatos_calibracion": {
+    "fecha": "2026-09-30T13:02:46.809657+00:00",
+    "f1": 0.13664048866796255,
+    "vecindad": "moore"
+  },
+  "metricas_calibracion_apolo": {
+    "f1": 0.13664048866796255,
+    "iou": null,
+    "precision": null,
+    "recall": null,
+    "eventos": null,
+    "generaciones": null,
+    "poblacion": null,
+    "fecha_calibracion": "2026-09-30T13:02:46.809657+00:00",
+    "_nota": "Métricas con las que se obtuvieron estos parámetros. Son la referencia contra la que hay que leer las de Rurrenabaque: si allí salen mucho peores, la diferencia es lo que mide la capacidad de generalización."
+  },
+  "_p_base_resuelto": {
+    "resuelto_el": "2026-09-30",
+    "como": "trasladado desde la calibración vigente del backend",
+    "_historico": {
+      "problema": "El motor cambió a v3: la calibración anterior (v2, p_base 0,1659) no es válida. Recalibrar Apolo y ejecutar congelar_parametros.py.",
+      "candidatos": [],
+      "recomendacion": "Monitoreo → Capa 4 → Calibrar constantes K, y después python congelar_parametros.py"
+    }
+  }
+}

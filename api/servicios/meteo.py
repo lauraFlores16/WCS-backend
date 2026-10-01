@@ -214,6 +214,170 @@ def obtener_serie_viento_historica(lat: float, lon: float, fecha_inicio: str, fe
     return r.valor
 
 
+def obtener_serie_ambiental_historica(lat: float, lon: float,
+                                       fecha_inicio: str, fecha_fin: str) -> list[dict]:
+    """Clima horario REAL de un evento pasado, en el formato que lee el motor.
+
+    POR QUÉ HACE FALTA
+        El autómata no tiene ningún mecanismo propio que APAGUE un incendio.
+        Una celda deja de arder al agotar su tiempo de residencia, pero el
+        frente sigue avanzando indefinidamente. Medido sobre Apolo con p_base
+        0,14 y sin capa de terreno:
+
+            6 h   →  0,3 % del municipio
+           12 h   →  1,5 %
+           24 h   →  7,9 %
+           48 h   → 39,1 %
+           96 h   → 91,0 %
+
+        Bajar p_base solo retrasa la inundación, no la evita. Lo que detiene
+        un incendio real y el modelo no estaba viendo es el CICLO DIURNO: de
+        noche la temperatura cae, la humedad relativa sube y la propagación se
+        frena sola. Y si llovió durante el evento, se apaga.
+
+        El motor ya sabía usar todo eso —`serie_ambiental`, con temperatura,
+        humedad, VPD y lluvia por hora— pero solo se alimentaba desde el
+        PRONÓSTICO, que no sirve para un evento de 2021 o de 2023. Esta
+        función trae esa misma serie del archivo ERA5 para las fechas del
+        evento, y con ella la validación histórica deja de correr en un día
+        eterno sin noches.
+
+    Devuelve la lista en el mismo formato que `serieAmbiental` de
+    `obtener_meteorologia`, para que el motor no note la diferencia.
+    """
+    clave = f"ambiental-hist:{lat:.2f},{lon:.2f}:{fecha_inicio}:{fecha_fin}"
+
+    def producir():
+        url = (
+            f"{ARCHIVO}?latitude={lat:.4f}&longitude={lon:.4f}"
+            f"&start_date={fecha_inicio}&end_date={fecha_fin}"
+            f"&hourly=temperature_2m,relative_humidity_2m,precipitation,"
+            f"vapour_pressure_deficit,wind_speed_10m,soil_moisture_0_to_7cm"
+            f"&timezone=America%2FLa_Paz"
+        )
+        r = pedir(url, etiqueta="Open-Meteo (archivo ERA5)")
+        h = (r.json().get("hourly") or {})
+        tiempos = h.get("time") or []
+        salida = []
+        for i, t in enumerate(tiempos):
+            salida.append({
+                "hora": t,
+                "temperatura_c": _at(h, "temperature_2m", i),
+                "humedad_relativa": _at(h, "relative_humidity_2m", i),
+                "vpd_kpa": _at(h, "vapour_pressure_deficit", i),
+                "precipitacion_mm": _at(h, "precipitation", i),
+                "humedad_suelo": _at(h, "soil_moisture_0_to_7cm", i),
+                "viento_ms": (_at(h, "wind_speed_10m", i) or 0) / 3.6,
+            })
+        return salida
+
+    return con_cache(clave, settings.TTL_SEGUNDOS["viento_historico"], producir).valor
+
+
+def _factores_peligro(t, hr_pct, v_kmh, horas_sin_lluvia):
+    """Los cuatro factores del índice, cada uno normalizado a 0..1.
+
+    Se extrae aparte para que la proyección horaria use EXACTAMENTE la misma
+    fórmula y los mismos pesos que el valor actual. Si estuviera duplicada en
+    dos sitios —peor aún, uno en Python y otro en JavaScript— acabarían
+    divergiendo y la gráfica del panel no diría lo mismo que la tarjeta de al
+    lado.
+
+    Los umbrales son los de la regla operacional 30-30-30 de bomberos:
+    30 °C, 30 % de humedad relativa, 30 km/h de viento. La normalización es
+    lineal entre el punto donde el factor empieza a contar y el umbral.
+    """
+    f_t = min(max((t - 15) / (30 - 15), 0), 1)
+    f_h = min(max((45 - hr_pct) / (45 - 30), 0), 1)
+    f_v = min(max(v_kmh / 30, 0), 1)
+    f_s = min(max(horas_sin_lluvia / 168, 0), 1)   # 168 h = una semana seca
+    return f_t, f_h, f_v, f_s
+
+
+def _puntaje_peligro(f_t, f_h, f_v, f_s):
+    return min(max(0.3 * f_t + 0.3 * f_h + 0.25 * f_v + 0.15 * f_s, 0), 1)
+
+
+def nivel_peligro(puntaje: float) -> str:
+    """Cortes de nivel. Son los mismos que usa el resto del sistema."""
+    if puntaje >= 0.70:
+        return "critico"
+    if puntaje >= 0.50:
+        return "alto"
+    if puntaje >= 0.30:
+        return "moderado"
+    return "bajo"
+
+
+def proyeccion_peligro(meteo: dict | None, horas: int = 12) -> list[dict]:
+    """Índice de peligro hora a hora sobre el pronóstico.
+
+    QUÉ ES Y QUÉ NO ES
+        Esto proyecta el ÍNDICE DE PELIGRO METEOROLÓGICO, no la probabilidad
+        de ocurrencia de XGBoost. Son cosas distintas y conviene no mezclarlas:
+
+          · XGBoost da una probabilidad POR CELDA, estática, entrenada con
+            variables del territorio. No se puede recalcular hora a hora: el
+            modelo no está en este backend, solo su salida precalculada.
+
+          · El índice de peligro es METEOROLÓGICO y sí evoluciona: depende de
+            temperatura, humedad, viento y días sin lluvia, y de eso hay
+            pronóstico horario.
+
+        Lo que responde la proyección es «¿las condiciones van a empeorar en
+        las próximas horas?», que es una pregunta operativa útil y honesta.
+        Presentarla como «probabilidad de incendio» sería atribuirle una
+        precisión que no tiene.
+
+    La sequedad acumulada se arrastra hacia adelante: si el pronóstico da
+    lluvia en una hora, el contador se reinicia desde ahí.
+    """
+    if not meteo:
+        return []
+    serie = meteo.get("serieAmbiental") or []
+    if not serie:
+        return []
+
+    horas_sin_lluvia = (meteo.get("sequedad") or {}).get("horas_sin_lluvia", 0)
+
+    salida = []
+    for h in serie[:horas]:
+        lluvia = h.get("precipitacion_mm") or 0
+        # El contador de sequedad avanza con el tiempo y se reinicia si llueve.
+        horas_sin_lluvia = 0 if lluvia > 0.1 else horas_sin_lluvia + 1
+
+        t = h.get("temperatura_c")
+        # OJO: en `serieAmbiental` la humedad viene en PORCENTAJE (0-100) y en
+        # `actual` viene en FRACCIÓN (0-1). Es una inconsistencia del propio
+        # servicio; se normaliza aquí para no propagarla.
+        hr = h.get("humedad_relativa")
+        hr_pct = (hr * 100) if (hr is not None and hr <= 1.0) else hr
+        v_kmh = (h.get("viento_ms") or 0) * 3.6
+
+        if t is None or hr_pct is None:
+            continue
+
+        f_t, f_h, f_v, f_s = _factores_peligro(t, hr_pct, v_kmh, horas_sin_lluvia)
+        puntaje = _puntaje_peligro(f_t, f_h, f_v, f_s)
+
+        salida.append({
+            "hora": h.get("hora"),
+            "puntaje": round(puntaje, 4),
+            "nivel": nivel_peligro(puntaje),
+            "temperatura_c": t,
+            "humedad_relativa_pct": round(hr_pct, 1),
+            "viento_kmh": round(v_kmh, 1),
+            "precipitacion_mm": round(lluvia, 2),
+            "horas_sin_lluvia": horas_sin_lluvia,
+            "regla_303030": sum([t >= 30, hr_pct <= 30, v_kmh >= 30]),
+            "factores": {
+                "temperatura": round(f_t, 3), "humedad": round(f_h, 3),
+                "viento": round(f_v, 3), "sequedad": round(f_s, 3),
+            },
+        })
+    return salida
+
+
 def indice_peligro(meteo: dict | None) -> dict | None:
     if not meteo:
         return None
@@ -222,15 +386,13 @@ def indice_peligro(meteo: dict | None) -> dict | None:
     hr = (a.get("humedad_relativa") or 0.5) * 100
     v_kmh = a.get("viento_kmh") or 0
 
-    f_t = min(max((t - 15) / (30 - 15), 0), 1)
-    f_h = min(max((45 - hr) / (45 - 30), 0), 1)
-    f_v = min(max(v_kmh / 30, 0), 1)
-    f_s = min(meteo["sequedad"]["horas_sin_lluvia"] / 168, 1)
-
-    puntaje = 0.3 * f_t + 0.3 * f_h + 0.25 * f_v + 0.15 * f_s
+    f_t, f_h, f_v, f_s = _factores_peligro(
+        t, hr, v_kmh, meteo["sequedad"]["horas_sin_lluvia"])
+    puntaje = _puntaje_peligro(f_t, f_h, f_v, f_s)
 
     return {
-        "puntaje": min(max(puntaje, 0), 1),
+        "puntaje": puntaje,
+        "nivel": nivel_peligro(puntaje),
         "condiciones": {
             "temperatura": {"valor": t, "umbral": 30, "cumple": t >= 30, "factor": f_t},
             "humedad": {"valor": hr, "umbral": 30, "cumple": hr <= 30, "factor": f_h},
@@ -241,4 +403,11 @@ def indice_peligro(meteo: dict | None) -> dict | None:
             },
         },
         "regla_303030": sum([t >= 30, hr <= 30, v_kmh >= 30]),
+        # Proyección horaria, misma fórmula y mismos pesos.
+        "proyeccion": proyeccion_peligro(meteo, horas=12),
+        "_nota": (
+            "Índice de peligro METEOROLÓGICO (temperatura, humedad, viento y "
+            "sequedad acumulada), no probabilidad de ocurrencia de XGBoost. "
+            "Umbrales de la regla operacional 30-30-30."
+        ),
     }

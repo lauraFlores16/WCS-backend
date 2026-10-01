@@ -1,0 +1,4 @@
+tp,fp,fn,tn,iou,precision,recall,f1,accuracy,evento,desde,hasta,focos_iniciales,pasos,usa_clima_horario,area_observada_km2,area_simulada_km2,diferencia_area_km2,razon_area,error_area_pct,comportamiento
+22,6040,113,30118,0.0036,0.0036,0.163,0.0071,0.8305,2024,2024-10-17,2024-10-21,97,384,True,33.75,1515.5,1481.75,44.904,4390.37,SOBREESTIMACIÓN
+9,9292,44,27009,0.001,0.001,0.1698,0.0019,0.7432,2021,2021-10-20,2021-10-24,36,384,True,13.25,2325.25,2312.0,175.491,17449.06,SOBREESTIMACIÓN
+6,2410,30,33910,0.0025,0.0025,0.1667,0.0049,0.9329,2023,2023-11-16,2023-11-20,34,384,True,9.0,604.0,595.0,67.111,6611.11,SOBREESTIMACIÓN

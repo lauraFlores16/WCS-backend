@@ -1,0 +1,76 @@
+{
+  "_comentario": "Constantes del ROI de Rurrenabaque VERIFICADAS leyendo Mun_RBQ.shp con pyshp/pyproj/shapely. Ningun valor de este archivo esta estimado a ojo: todos salen de la geometria original entregada por la institucion. Reproducible con python/verificar_shapefile.py",
+  "_fase": "FASE 1 - completada",
+  "municipio": {
+    "codigo_ut": "080304",
+    "nombre_oficial_en_dbf": "Puerto Menor de Rurrenabaque",
+    "capital": "Rurrenabaque",
+    "provincia": "General Jose Ballivian",
+    "departamento": "Beni",
+    "zona_utm_declarada": "19",
+    "_nota_departamento": "El .dbf dice BENI, no La Paz. Apolo (caso de estudio) esta en La Paz; Rurrenabaque (validacion externa) esta en Beni. Esto refuerza el caracter de prueba externa: es otro departamento, otra provincia y otro contexto fisiografico."
+  },
+  "crs_original": {
+    "nombre": "WGS_1984_UTM_Zone_19S",
+    "epsg": 32719,
+    "unidad": "metro",
+    "meridiano_central": -69.0
+  },
+  "geometria": {
+    "tipo": "Polygon",
+    "anillos": 1,
+    "huecos": 0,
+    "vertices": 2058,
+    "valida": true,
+    "multiparte": false
+  },
+  "area": {
+    "km2_utm19s": 2519.84,
+    "km2_geodesica_wgs84": 2519.77,
+    "ha_calculada": 251983.6,
+    "ha_declarada_en_dbf": 250000.0,
+    "_nota": "El campo sup_ha del .dbf (250.000 ha) es un valor nominal redondeado. El area real de la geometria es 251.983,6 ha. Las dos vias de calculo (planimetrica en UTM y geodesica sobre el elipsoide) coinciden en 2.519,8 km2, lo que confirma que la proyeccion declarada es la correcta. Para la tesis se usa la calculada, citando la discrepancia."
+  },
+  "perimetro_km": 300.85,
+  "bbox_wgs84": {
+    "lon_min": -67.559663,
+    "lat_min": -15.046462,
+    "lon_max": -67.073719,
+    "lat_max": -14.343298,
+    "cadena_firms": "-67.559663,-15.046462,-67.073719,-14.343298",
+    "_formato_firms": "oeste,sur,este,norte (el que pide el endpoint api/area/csv de NASA FIRMS)"
+  },
+  "bbox_utm19s": {
+    "x_min": 655280.8505112731,
+    "y_min": 8335847.570903614,
+    "x_max": 707470.011395005,
+    "y_max": 8413809.306183988
+  },
+  "centroide_wgs84": {
+    "lat": -14.688621,
+    "lon": -67.305708
+  },
+  "extension_km": {
+    "este_oeste": 52.2,
+    "norte_sur": 78.0
+  },
+  "grid_500m": {
+    "_comentario": "Misma convención que el grid de Apolo, MEDIDA sobre backend_django/api/datos/grid.csv: fila 11 -> lat -14,00037 y fila 233 -> lat -14,99937, o sea la FILA CRECE HACIA EL SUR; columna 26 -> lon -68,99822 y columna 247 -> lon -68,00372, o sea la COLUMNA CRECE HACIA EL ESTE. Esto no es cosmético: el motor calcula la influencia del viento con dot = (dc*u - df*v)/vel, donde u es la componente este y v la norte. El signo negativo de df solo es correcto si df positivo significa ir hacia el sur.",
+    "paso_grados": 0.0045,
+    "lat_origen": -14.342,
+    "lon_origen": -67.563,
+    "filas": 157,
+    "columnas": 109,
+    "celdas_envolvente": 17113,
+    "celdas_con_centro_dentro_del_municipio": 10449,
+    "area_por_celda_ha": 25.0,
+    "comparacion_apolo": "Apolo 36.390 celdas / Rurrenabaque 10.449 celdas (29 % del tamano de Apolo)",
+    "fila_crece_hacia": "SUR",
+    "columna_crece_hacia": "ESTE",
+    "_origen_nota": "Esquina NOROESTE del rectangulo envolvente. fila = round((LAT_ORIGEN - lat)/PASO) y columna = round((lon - LON_ORIGEN)/PASO). La version anterior de este archivo daba lat_origen en el borde SUR y la fila creciendo al norte: estaba invertida."
+  },
+  "assets_gee_esperados": {
+    "apolo": "projects/fire-prediction-apolo/assets/Mun_Apolo",
+    "rurrenabaque": "projects/fire-prediction-apolo/assets/Mun_RBQ"
+  }
+}

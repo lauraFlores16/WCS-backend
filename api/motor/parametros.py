@@ -10,7 +10,7 @@ de la simulación" en el frontend.
 from __future__ import annotations
 
 import time
-from datetime import datetime
+from datetime import datetime, timezone
 
 from ..almacen.db import leer_calibracion
 from ..servicios.firms import clave_configurada, obtener_focos_activos
@@ -39,7 +39,11 @@ def _elegir_foco(grid: list[dict], foco_manual: dict | None, historicos: list) -
     if clave_configurada():
         try:
             r = obtener_focos_activos()
-            focos = r["focos"]
+            # Solo focos REALES de NASA. Antes, cuando el servicio caía al
+            # respaldo histórico, esta rama etiquetaba una detección de 2019
+            # como «foco activo VIIRS» y además se saltaba XGBoost, que es la
+            # siguiente prioridad de la cadena.
+            focos = r["focos"] if r.get("estado") == "correcto" else []
             if focos:
                 mejor = max(focos, key=lambda f: f.get("frp") or 0)
                 celda = celda_mas_cercana(mejor["lat"], mejor["lon"])
@@ -168,7 +172,7 @@ def derivar_parametros(grid: list[dict], opciones: dict | None = None) -> dict:
         )
 
     anotar(
-        "Probabilidad base", f"{p_base:.3f}",
+        "Velocidad base del frente", f"{p_base * 100:.0f} m/h (p_base {p_base:.3f})",
         f"Calibración {calibracion['fecha'][:10]}" if calibracion else "Valor por defecto",
         (f"p_base calibrada = {p_base_calibrado} (F1 = {(calibracion.get('f1') or 0):.3f} sobre perímetros reales), "
          f"ajustada ×{factor_peligro:.2f} por el peligro meteorológico actual") if calibracion else
@@ -220,5 +224,38 @@ def derivar_parametros(grid: list[dict], opciones: dict | None = None) -> dict:
                        "por_fecha": bool(est.get("porFecha"))} if est["incluida"] else None),
     }
 
+    # --- Frescura de los datos ---------------------------------------------
+    # La pantalla tiene que poder decir CUÁNDO se consultó cada cosa. Sin esto
+    # no hay forma de distinguir «no hay focos activos» de «el dato tiene seis
+    # horas», y son dos situaciones muy distintas para quien está decidiendo.
+    #
+    # Cada servicio cachea con su propio TTL: meteorología 10 min, FIRMS
+    # 10 min, OSM 7 días, DEM nunca. Así que la antigüedad se reporta por
+    # servicio, no como un único número.
+    actualizado = {
+        "consultado": datetime.now(timezone.utc).isoformat(),
+        "meteo": {
+            "hora_dato": (meteo or {}).get("actual", {}).get("hora"),
+            "consultado": (meteo or {}).get("consultado"),
+            "fuente": (meteo or {}).get("fuente"),
+            "disponible": meteo is not None,
+        },
+        "firms": None,
+    }
+    try:
+        f = obtener_focos_activos()
+        actualizado["firms"] = {
+            "activos": f.get("activos"),
+            "fuente": f.get("fuente"),
+            "dias_ventana": f.get("dias"),
+            "edad_minutos": (f.get("procedencia") or {}).get("edad_minutos"),
+            "origen": (f.get("procedencia") or {}).get("origen"),
+            "reciente": (f.get("procedencia") or {}).get("reciente"),
+            "configurada": f.get("configurada"),
+        }
+    except Exception:  # noqa: BLE001
+        actualizado["firms"] = {"disponible": False}
+
     return {"parametros": parametros, "diagnostico": diagnostico, "meteo": meteo, "climatologia": climatologia,
-            "peligro": peligro, "nivel": nivel, "error_meteo": error_meteo, "seleccion_foco": seleccion}
+            "peligro": peligro, "nivel": nivel, "error_meteo": error_meteo, "seleccion_foco": seleccion,
+            "actualizado": actualizado}

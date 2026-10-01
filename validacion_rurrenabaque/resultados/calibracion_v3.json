@@ -1,0 +1,204 @@
+{
+  "fecha": "2026-09-30T13:02:46.809657+00:00",
+  "metodo": "Evolución diferencial DE/rand/1/bin · población 16 · 15 generaciones",
+  "p_base": 0.23755032242950294,
+  "constantes": {
+    "ROS_REFERENCIA_M_H": 100.0,
+    "K_VIENTO": 0.3402547893816775,
+    "VIENTO_MAX": 6.0,
+    "K_PENDIENTE_ARRIBA": 7.93420592361294,
+    "K_PENDIENTE_ABAJO": 2.631710386814625,
+    "PENDIENTE_MAX": 4.0,
+    "NDVI_BARRERA": 0.185572761364019,
+    "NDVI_SATURACION": 0.45,
+    "HUMEDAD_EXTINCION": 0.2629468481276664,
+    "K_HUMEDAD": 0.374314375423987,
+    "HUMEDAD_SUELO_REF": 0.3,
+    "HR_REFERENCIA": 0.6,
+    "T_REFERENCIA_C": 28.0,
+    "K_TEMPERATURA": 0.01,
+    "K_VPD": 0.04,
+    "ROS_MIN_M_H": 1.0,
+    "T_ESTANCAMIENTO_H": 6.0,
+    "T_MAX_ARDIENDO_H": 72.0,
+    "RUIDO_CELDA": 0.35,
+    "RUIDO_PASO": 0.25,
+    "K_LLUVIA_PROP": 0.2,
+    "K_LLUVIA_EXT": 0.02,
+    "K_BARRERA": 0.028393804759204333,
+    "SPOTTING_ACTIVO": true,
+    "SPOTTING_PROB": 0.0,
+    "SPOTTING_VIENTO_MIN": 1.0,
+    "SPOTTING_DIST_MIN": 2,
+    "SPOTTING_DIST_MAX": 6,
+    "SPOTTING_DISPERSION": 0.35,
+    "VECINDAD": "moore",
+    "RADIO_VECINDAD": 1,
+    "EXP_DISTANCIA": 1.0,
+    "EXP_VIENTO": 1.0,
+    "NDVI_BASE": 0.5,
+    "RESIDENCIA_MIN": 3,
+    "RESIDENCIA_MAX": 6,
+    "DECAIMIENTO_FASE": 0.25,
+    "VPD_REFERENCIA": 1.0
+  },
+  "f1": 0.13664048866796255,
+  "detalle": [
+    {
+      "evento": "2024",
+      "f1": 0.24606905495218032,
+      "f1_estricto": 0.16611295681063123,
+      "iou_estricto": 0.09057971014492754,
+      "area_sim": 116,
+      "area_real": 185,
+      "razon_area": 0.6270270270270271,
+      "precision": 0.39655172413793105,
+      "recall": 0.1783783783783784,
+      "iou": 0.1402957486136784
+    },
+    {
+      "evento": "2021",
+      "f1": 0.036585365853658534,
+      "f1_estricto": 0.016666666666666666,
+      "iou_estricto": 0.008403361344537815,
+      "area_sim": 32,
+      "area_real": 88,
+      "razon_area": 0.36363636363636365,
+      "precision": 0.09375,
+      "recall": 0.022727272727272728,
+      "iou": 0.018633540372670808
+    },
+    {
+      "evento": "2023",
+      "f1": 0.11864406779661016,
+      "f1_estricto": 0.038709677419354833,
+      "iou_estricto": 0.019736842105263157,
+      "area_sim": 110,
+      "area_real": 45,
+      "razon_area": 2.4444444444444446,
+      "precision": 0.12727272727272726,
+      "recall": 0.1111111111111111,
+      "iou": 0.06306306306306306
+    }
+  ],
+  "historia": [
+    {
+      "generacion": 0,
+      "mejor": 0.0933983344320067
+    },
+    {
+      "generacion": 1,
+      "mejor": 0.12613639521533881
+    },
+    {
+      "generacion": 2,
+      "mejor": 0.13664048866796255
+    },
+    {
+      "generacion": 3,
+      "mejor": 0.13664048866796255
+    },
+    {
+      "generacion": 4,
+      "mejor": 0.13664048866796255
+    },
+    {
+      "generacion": 5,
+      "mejor": 0.13664048866796255
+    },
+    {
+      "generacion": 6,
+      "mejor": 0.13664048866796255
+    },
+    {
+      "generacion": 7,
+      "mejor": 0.13664048866796255
+    },
+    {
+      "generacion": 8,
+      "mejor": 0.13664048866796255
+    },
+    {
+      "generacion": 9,
+      "mejor": 0.13664048866796255
+    },
+    {
+      "generacion": 10,
+      "mejor": 0.13664048866796255
+    },
+    {
+      "generacion": 11,
+      "mejor": 0.13664048866796255
+    },
+    {
+      "generacion": 12,
+      "mejor": 0.13664048866796255
+    },
+    {
+      "generacion": 13,
+      "mejor": 0.13664048866796255
+    },
+    {
+      "generacion": 14,
+      "mejor": 0.13664048866796255
+    },
+    {
+      "generacion": 15,
+      "mejor": 0.13664048866796255
+    }
+  ],
+  "perimetros": [
+    {
+      "evento": "2024",
+      "celdas": 232,
+      "area_km2": 58.0,
+      "desde": "2024-10-17",
+      "hasta": "2024-10-21",
+      "detecciones": 428,
+      "foco": {
+        "fila": 54,
+        "columna": 164
+      },
+      "pasos": 384
+    },
+    {
+      "evento": "2021",
+      "celdas": 89,
+      "area_km2": 22.2,
+      "desde": "2021-10-20",
+      "hasta": "2021-10-24",
+      "detecciones": 137,
+      "foco": {
+        "fila": 77,
+        "columna": 135
+      },
+      "pasos": 384
+    },
+    {
+      "evento": "2023",
+      "celdas": 70,
+      "area_km2": 17.5,
+      "desde": "2023-11-16",
+      "hasta": "2023-11-20",
+      "detecciones": 1165,
+      "foco": {
+        "fila": 141,
+        "columna": 108
+      },
+      "pasos": 384
+    }
+  ],
+  "minutos_por_iteracion": 15,
+  "modelo": "velocidad_v3",
+  "genes": [
+    "p_base",
+    "K_VIENTO",
+    "K_PENDIENTE_ARRIBA",
+    "K_PENDIENTE_ABAJO",
+    "HUMEDAD_EXTINCION",
+    "K_HUMEDAD",
+    "NDVI_BARRERA",
+    "K_BARRERA",
+    "SPOTTING_PROB"
+  ]
+}

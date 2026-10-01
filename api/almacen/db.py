@@ -51,6 +51,7 @@ from .db_supabase import (  # noqa: E402,F401  (import tras la validación, a pr
     guardar_calibracion, leer_calibracion, leer_historial_calibracion,
     # bitácora
     registrar_bitacora, listar_bitacora,
+    crear_reporte_campo, listar_reportes_campo,
     # informes
     guardar_informe, listar_informes, obtener_informe, informe_de_escenario,
     # sesiones

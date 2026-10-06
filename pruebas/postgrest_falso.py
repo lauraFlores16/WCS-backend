@@ -102,6 +102,42 @@ ESQUEMA = {
     },
 }
 
+# Validación multizona (validacion_zonas/sql/validacion_zonas.sql)
+ESQUEMA.update({
+    "validacion_mapbiomas": {
+        "pk": "anio",
+        "columnas": ["anio", "npz_b64", "fuente", "cobertura", "subido_por", "subido_en"],
+        "defaults": {"subido_en": _ahora}, "no_nulos": ["npz_b64"],
+    },
+    "validacion_zonas": {
+        "pk": "id",
+        "columnas": ["id", "municipio_id", "anio", "municipio", "resumen", "eventos",
+                     "focos_gz", "limite", "creado_por", "creado_en"],
+        "defaults": {"creado_en": _ahora},
+    },
+    "validacion_particion": {
+        "pk": "municipio_id",
+        "columnas": ["municipio_id", "rol", "asignado_por", "asignado_en"],
+        "defaults": {"asignado_en": _ahora},
+        "checks": {"rol": {"calibracion", "validacion"}},
+    },
+    "validacion_paquetes": {
+        "pk": "id",
+        "columnas": ["id", "zona_id", "municipio_id", "anio", "evento_id", "rol", "paquete",
+                     "evento", "focos_iniciales", "grid_gz", "observado_gz", "insumos_gz",
+                     "oficial", "resumen_oficial", "repeticiones", "creado_por", "creado_en"],
+        "defaults": {"creado_en": _ahora},
+        "checks": {"rol": {"calibracion", "validacion"}},
+        "fk": {"zona_id": ("validacion_zonas", "id")},
+    },
+    "validacion_trabajos": {
+        "pk": "id",
+        "columnas": ["id", "tipo", "objetivo", "estado", "progreso", "mensaje", "log",
+                     "resultado", "error", "usuario", "creado_en", "actualizado_en"],
+        "defaults": {"creado_en": _ahora, "estado": "en_cola", "progreso": 0},
+    },
+})
+
 DATOS: dict[str, list[dict]] = {t: [] for t in ESQUEMA}
 _CANDADO = threading.Lock()
 

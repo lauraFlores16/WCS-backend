@@ -1,6 +1,6 @@
 from django.urls import path
 
-from . import views
+from . import views, views_zonas
 
 urlpatterns = [
     path("estado", views.estado),
@@ -40,6 +40,24 @@ urlpatterns = [
     path("alertas/riesgo", views.alertas_riesgo),
 
     path("calibracion", views.calibracion_vista),
+
+    # Validación externa (Rurrenabaque E122) repetida en vivo desde el dashboard
+    path("validacion/rurrenabaque", views.validacion_rbq_contexto),
+    path("validacion/rurrenabaque/ejecutar", views.validacion_rbq_ejecutar),
+    path("validacion/rurrenabaque/ejecucion/<str:id_>", views.validacion_rbq_estado),
+    # Validación multizona: cualquier municipio de Bolivia procesado con validacion_zonas/
+    path("validacion/paquetes", views.validacion_paquetes),
+    path("validacion/paquetes/<str:pid>", views.validacion_paquete_contexto),
+    path("validacion/paquetes/<str:pid>/limite", views.validacion_paquete_limite),
+    path("validacion/paquetes/<str:pid>/ejecutar", views.validacion_paquete_ejecutar),
+    path("validacion/indice", views_zonas.indice),
+    path("validacion/mapbiomas", views_zonas.mapbiomas_vista),
+    path("validacion/zonas", views_zonas.zona_procesar),
+    path("validacion/zonas/<str:mid>/<int:anio>", views_zonas.zona_detalle),
+    path("validacion/zonas/<str:mid>/<int:anio>/paquete", views_zonas.paquete_preparar),
+    path("validacion/paquetes/<str:pid>/oficial", views_zonas.paquete_oficial),
+    path("validacion/trabajos", views_zonas.trabajos_vista),
+    path("validacion/trabajos/<str:tid>", views_zonas.trabajos_vista),
 
     path("informes", views.informes_lista),
     path("informes/<str:id_>", views.informe_detalle),

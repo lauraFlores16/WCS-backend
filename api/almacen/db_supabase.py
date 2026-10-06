@@ -570,3 +570,100 @@ def guardar_matriz_permisos(matriz: dict) -> dict:
               {"id": "actual", "matriz": normalizada, "actualizado_en": _ahora_iso()},
               on_conflict="id")
     return normalizada
+
+
+# ===========================================================================
+# Validación multizona (validacion_zonas/sql/validacion_zonas.sql)
+# ===========================================================================
+# Los datos voluminosos se guardan comprimidos (gzip + base64, columnas *_gz).
+COL_VZ_ZONAS = ("id", "municipio_id", "anio", "municipio", "resumen", "eventos",
+                "focos_gz", "limite", "creado_por", "creado_en")
+COL_VZ_PAQUETES = ("id", "zona_id", "municipio_id", "anio", "evento_id", "rol", "paquete",
+                   "evento", "focos_iniciales", "grid_gz", "observado_gz", "insumos_gz",
+                   "oficial", "resumen_oficial", "repeticiones", "creado_por", "creado_en")
+COL_VZ_TRABAJOS = ("id", "tipo", "objetivo", "estado", "progreso", "mensaje", "log",
+                   "resultado", "error", "usuario", "creado_en", "actualizado_en")
+_LIGERO_PAQUETE = ("id,zona_id,municipio_id,anio,evento_id,rol,paquete,evento,"
+                   "oficial,creado_por,creado_en")
+
+
+def vz_guardar_zona(fila: dict) -> dict:
+    return sb.upsert("validacion_zonas", sb.solo_columnas(fila, COL_VZ_ZONAS))
+
+
+def vz_leer_zona(id_: str, con_focos: bool = True) -> Optional[dict]:
+    cols = "*" if con_focos else "id,municipio_id,anio,municipio,resumen,eventos,limite,creado_por,creado_en"
+    return sb.select_uno("validacion_zonas", f"select={cols}&id=eq.{enc(id_)}")
+
+
+def vz_listar_zonas() -> list[dict]:
+    return sb.select("validacion_zonas",
+                     "select=id,municipio_id,anio,municipio,resumen,creado_por,creado_en"
+                     "&order=creado_en.desc")
+
+
+def vz_borrar_zona(id_: str) -> None:
+    sb.eliminar("validacion_paquetes", f"zona_id=eq.{enc(id_)}")
+    sb.eliminar("validacion_zonas", f"id=eq.{enc(id_)}")
+
+
+def vz_guardar_paquete(fila: dict) -> dict:
+    return sb.upsert("validacion_paquetes", sb.solo_columnas(fila, COL_VZ_PAQUETES))
+
+
+def vz_leer_paquete(id_: str) -> Optional[dict]:
+    return sb.select_uno("validacion_paquetes", f"select=*&id=eq.{enc(id_)}")
+
+
+def vz_listar_paquetes() -> list[dict]:
+    return sb.select("validacion_paquetes", f"select={_LIGERO_PAQUETE}&order=creado_en.desc")
+
+
+def vz_actualizar_paquete(id_: str, cambios: dict) -> Optional[dict]:
+    return sb.actualizar("validacion_paquetes", f"id=eq.{enc(id_)}",
+                         sb.solo_columnas(cambios, COL_VZ_PAQUETES))
+
+
+def vz_particion() -> dict:
+    filas = sb.select("validacion_particion", "select=municipio_id,rol")
+    out = {"calibracion": [], "validacion": []}
+    for f in filas:
+        out.setdefault(f["rol"], []).append(f["municipio_id"])
+    return out
+
+
+def vz_asignar_rol(municipio_id: str, rol: str, usuario: Optional[str] = None) -> str:
+    """Devuelve el rol vigente. Nunca cambia uno ya asignado."""
+    actual = sb.select_uno("validacion_particion", f"select=rol&municipio_id=eq.{enc(municipio_id)}")
+    if actual:
+        return actual["rol"]
+    sb.insertar("validacion_particion", {"municipio_id": municipio_id, "rol": rol,
+                                         "asignado_por": usuario})
+    return rol
+
+
+def vz_guardar_trabajo(fila: dict) -> dict:
+    fila = {**fila, "actualizado_en": _ahora_iso()}
+    return sb.upsert("validacion_trabajos", sb.solo_columnas(fila, COL_VZ_TRABAJOS))
+
+
+def vz_leer_trabajo(id_: str) -> Optional[dict]:
+    return sb.select_uno("validacion_trabajos", f"select=*&id=eq.{enc(id_)}")
+
+
+def vz_listar_trabajos(limite: int = 20) -> list[dict]:
+    return sb.select("validacion_trabajos",
+                     "select=id,tipo,objetivo,estado,progreso,mensaje,error,usuario,creado_en,actualizado_en"
+                     f"&order=creado_en.desc&limit={int(limite)}")
+
+
+def vz_guardar_mapbiomas(fila: dict) -> dict:
+    return sb.upsert("validacion_mapbiomas", fila, on_conflict="anio")
+
+
+def vz_leer_mapbiomas(anio: int) -> Optional[dict]:
+    return sb.select_uno("validacion_mapbiomas", f"select=*&anio=eq.{int(anio)}")
+
+
+def vz_listar_mapbiomas() -> list[dict]:
+    return sb.select("validacion_mapbiomas", "select=anio,fuente,cobertura,subido_por,subido_en&order=anio")

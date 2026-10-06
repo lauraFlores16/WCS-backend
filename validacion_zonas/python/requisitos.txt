@@ -1,0 +1,7 @@
+# Para correr p0–p4 en la laptop (además de los del backend: Django, numpy, requests)
+pandas
+shapely
+pyproj
+rasterio
+scipy
+scikit-learn

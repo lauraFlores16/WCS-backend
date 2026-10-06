@@ -63,4 +63,10 @@ from .db_supabase import (  # noqa: E402,F401  (import tras la validación, a pr
     restablecer_password,
     # permisos
     leer_matriz_permisos, guardar_matriz_permisos,
+    # validación multizona
+    vz_guardar_zona, vz_leer_zona, vz_listar_zonas, vz_borrar_zona,
+    vz_guardar_paquete, vz_leer_paquete, vz_listar_paquetes, vz_actualizar_paquete,
+    vz_particion, vz_asignar_rol,
+    vz_guardar_trabajo, vz_leer_trabajo, vz_listar_trabajos,
+    vz_guardar_mapbiomas, vz_leer_mapbiomas, vz_listar_mapbiomas,
 )

@@ -9,3 +9,13 @@ db_sin_usar.sqlite3
 !.cache/.gitkeep
 .env
 .env.example
+# validacion_zonas: cachés y rásteres pesados (se quedan en la laptop)
+validacion_zonas/datos/_geoboundaries/
+validacion_zonas/datos/mapbiomas/*.img
+validacion_zonas/datos/mapbiomas/*.tif
+validacion_zonas/datos/mapbiomas/*.aux.xml
+validacion_zonas/zonas/*/*/firms_bruto.csv
+validacion_zonas/config/candidatos/
+# Flujo antiguo por archivos (ahora todo va a Supabase desde el dashboard)
+validacion_zonas/zonas/
+validacion_zonas/config/particion.json

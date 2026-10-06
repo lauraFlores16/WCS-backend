@@ -1007,3 +1007,114 @@ def bitacora_vista(request: HttpRequest):
     cuerpo = cuerpo_json(request)
     almacen_db.registrar_bitacora({"usuario": usuario["nombre"], **cuerpo})
     return bien({"registrado": True})
+
+
+# ===========================================================================
+# VALIDACIÓN EXTERNA — Rurrenabaque E122, repetida en vivo
+# ===========================================================================
+# Repite f11 + f12 con los parámetros congelados y los insumos grabados de la
+# corrida oficial. La corrida va en un hilo: en Render (plan gratis) 30
+# repeticiones pueden pasar del tiempo máximo de una petición, así que el
+# frontend lanza y luego consulta el progreso.
+@require_http_methods(["GET"])
+def validacion_rbq_contexto(request: HttpRequest):
+    denegado = auth.exigir_permiso(request, "ver_simulaciones")
+    if denegado:
+        return denegado
+    from .motor import validacion_externa
+    try:
+        return bien(validacion_externa.contexto())
+    except Exception as e:  # noqa: BLE001
+        return mal(e)
+
+
+@require_http_methods(["POST"])
+def validacion_rbq_ejecutar(request: HttpRequest, pid: str | None = None):
+    denegado = auth.exigir_permiso(request, "ejecutar_simulacion")
+    if denegado:
+        return denegado
+    from .motor import validacion_externa
+    cuerpo = cuerpo_json(request)
+    try:
+        n = int(cuerpo.get("repeticiones") or validacion_externa.MAX_REPETICIONES)
+    except (TypeError, ValueError):
+        return error_simple("repeticiones debe ser un número entero", 400)
+    if not 1 <= n <= validacion_externa.MAX_REPETICIONES:
+        return error_simple(f"repeticiones debe estar entre 1 y {validacion_externa.MAX_REPETICIONES}", 400)
+    usuario = auth.verificar_peticion(request) or {}
+    try:
+        trabajo = validacion_externa.lanzar(n, bool(cuerpo.get("spotting", True)), usuario.get("nombre"),
+                                            pid=pid or validacion_externa.PAQUETE_RBQ)
+    except KeyError as e:
+        return error_simple(str(e).strip("'\""), 404)
+    except Exception as e:  # noqa: BLE001
+        return mal(e)
+    try:
+        almacen_db.registrar_bitacora({
+            "usuario": usuario.get("nombre"), "accion": "Ejecutó validación externa",
+            "detalle": f"{pid or 'Rurrenabaque E122'} · {n} repeticiones", "tipo": "sim",
+        })
+    except Exception as e:  # noqa: BLE001
+        print(f"[validacion] no se pudo registrar en la bitácora: {e}")
+    return bien(trabajo)
+
+
+@require_http_methods(["GET"])
+def validacion_rbq_estado(request: HttpRequest, id_: str):
+    denegado = auth.exigir_permiso(request, "ver_simulaciones")
+    if denegado:
+        return denegado
+    from .motor import validacion_externa
+    t = validacion_externa.estado_trabajo(id_)
+    if not t:
+        return error_simple("No existe esa ejecución (el servidor pudo reiniciarse).", 404)
+    return bien(t)
+
+
+# --- Multizona -------------------------------------------------------------
+@require_http_methods(["GET"])
+def validacion_paquetes(request: HttpRequest):
+    denegado = auth.exigir_permiso(request, "ver_simulaciones")
+    if denegado:
+        return denegado
+    import json as _json
+    from .motor import validacion_externa
+    indice = validacion_externa.ZONAS / "indice.json"
+    try:
+        return bien({
+            "paquetes": validacion_externa.listar_paquetes(),
+            "indice": _json.loads(indice.read_text(encoding="utf-8")) if indice.exists() else None,
+        })
+    except Exception as e:  # noqa: BLE001
+        return mal(e)
+
+
+@require_http_methods(["GET"])
+def validacion_paquete_contexto(request: HttpRequest, pid: str):
+    denegado = auth.exigir_permiso(request, "ver_simulaciones")
+    if denegado:
+        return denegado
+    from .motor import validacion_externa
+    try:
+        return bien(validacion_externa.contexto(pid))
+    except KeyError as e:
+        return error_simple(str(e).strip("'\""), 404)
+    except Exception as e:  # noqa: BLE001
+        return mal(e)
+
+
+@require_http_methods(["GET"])
+def validacion_paquete_limite(request: HttpRequest, pid: str):
+    denegado = auth.exigir_permiso(request, "ver_simulaciones")
+    if denegado:
+        return denegado
+    from .motor import validacion_externa
+    try:
+        return bien(validacion_externa.limite(pid))
+    except KeyError as e:
+        return error_simple(str(e).strip("'\""), 404)
+
+
+@require_http_methods(["POST"])
+def validacion_paquete_ejecutar(request: HttpRequest, pid: str):
+    return validacion_rbq_ejecutar(request, pid=pid)

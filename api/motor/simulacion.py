@@ -5,7 +5,10 @@ SIMULACIÓN — orquestación del lado servidor — puerto de motor/simulacion.j
 """
 from __future__ import annotations
 
+import os
 import uuid
+from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import TimeoutError as _Agotado
 from datetime import datetime, timezone
 from typing import Optional
 
@@ -16,6 +19,18 @@ from .alertas import evaluar_alertas
 from .automata import ejecutar_automata
 
 AREA_POR_CELDA_HA = 25.0
+
+# Cuánto espera una simulación a cada capa de terreno (DEM, OSM) antes de
+# seguir sin ella. Con la caché vacía —Render tras cada despliegue— Overpass
+# podía tardar minutos entre reintentos y el frontend cortaba a los 180 s. La
+# descarga sigue en segundo plano y la deja en caché para la próxima corrida;
+# la que siguió sin la capa lo declara en `avisos_terreno`.
+ESPERA_TERRENO_S = float(os.environ.get("TERRENO_ESPERA_S", "30"))
+_descargas_terreno = ThreadPoolExecutor(max_workers=2, thread_name_prefix="terreno")
+
+
+def _con_espera(funcion, *args):
+    return _descargas_terreno.submit(funcion, *args).result(timeout=ESPERA_TERRENO_S)
 
 
 def preparar_entorno(parametros: dict, opciones: Optional[dict] = None) -> dict:
@@ -32,21 +47,30 @@ def preparar_entorno(parametros: dict, opciones: Optional[dict] = None) -> dict:
     barreras_extra = None
     resistencia_extra = None
     resumen_terreno = None
+    avisos_terreno = []
 
     if opciones.get("usar_terreno", True) is not False:
         try:
-            dem = obtener_dem(parametros["foco_fila"], parametros["foco_columna"],
+            dem = _con_espera(obtener_dem, parametros["foco_fila"], parametros["foco_columna"],
                               opciones.get("radio_dem") or 20)
             elevacion = dem["alturas"]
+        except _Agotado:
+            avisos_terreno.append(f"DEM sin respuesta en {ESPERA_TERRENO_S:.0f} s: "
+                                  "pendiente sin elevación real")
+            print(f"[simulacion] {avisos_terreno[-1]}")
         except Exception as e:  # noqa: BLE001
             print(f"[simulacion] sin DEM: {e}")
         try:
-            osm = obtener_terreno_osm()
+            osm = _con_espera(obtener_terreno_osm)
             barreras_extra = set(osm["barreras"])
             # La resistencia parcial (caminos, quebradas, roca desnuda) se
             # calculaba desde siempre y no llegaba al motor. Ahora sí.
             resistencia_extra = osm["resistencia"]
             resumen_terreno = osm["resumen"]
+        except _Agotado:
+            avisos_terreno.append(f"Capa OSM sin respuesta en {ESPERA_TERRENO_S:.0f} s: "
+                                  "corrida sin ríos ni caminos como barrera")
+            print(f"[simulacion] {avisos_terreno[-1]}")
         except Exception as e:  # noqa: BLE001
             print(f"[simulacion] sin capa OSM: {e}")
 
@@ -65,6 +89,7 @@ def preparar_entorno(parametros: dict, opciones: Optional[dict] = None) -> dict:
         # llegaba al motor: de todo el pronóstico solo se usaba el viento.
         "serie_ambiental": parametros.get("serie_ambiental") or opciones.get("serie_ambiental"),
         "resumen_terreno": resumen_terreno,
+        "avisos_terreno": avisos_terreno,
     }
 
 
@@ -86,6 +111,7 @@ def ejecutar_simulacion(parametros: dict, opciones: Optional[dict] = None) -> di
         "constantes": constantes,
         "guion": parametros.get("guion") or opciones.get("guion"),
     })
+    resultado_motor["metadatos"]["avisos_terreno"] = entorno["avisos_terreno"]
     return _persistir(parametros, resultado_motor["iteraciones"],
                       resultado_motor["metadatos"], resumen_terreno, constantes, opciones)
 
@@ -186,6 +212,9 @@ def _persistir(parametros: dict, iteraciones: list, metadatos_motor_bruto: dict,
         "usa_serie_ambiental": metadatos_motor_bruto.get("usa_serie_ambiental", False),
         "guion": metadatos_motor_bruto.get("guion") or [],
         "celdas_apagadas_por_lluvia": metadatos_motor_bruto.get("celdas_apagadas_por_lluvia", 0),
+        # Capas de terreno que no llegaron a tiempo: una corrida sin barreras
+        # quema más, y el escenario guardado tiene que decirlo.
+        "avisos_terreno": metadatos_motor_bruto.get("avisos_terreno") or [],
     }
 
     escenario = {

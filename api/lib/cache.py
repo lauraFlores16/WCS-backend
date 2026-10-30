@@ -126,6 +126,24 @@ def con_cache_tolerante(clave: str, ttl_segundos: Optional[float], productor: Ca
         raise
 
 
+def sembrar(clave: str, valor: Any) -> bool:
+    """Deja `valor` en caché, sin caducidad, solo si no hay ya una copia.
+
+    Para datos estáticos que viajan con el repositorio (la capa OSM de Apolo):
+    en Render el disco se vacía en cada despliegue y sin semilla la primera
+    simulación esperaba minutos a Overpass. Devuelve True si sembró.
+    """
+    with _memoria_guard:
+        if clave in _memoria:
+            return False
+    if _leer_disco(clave, ignorar_caducidad=True):
+        return False
+    with _memoria_guard:
+        _memoria[clave] = {"valor": valor, "expira": None, "guardado": time.time() * 1000}
+    _escribir_disco(clave, valor, None)
+    return True
+
+
 def invalidar(prefijo: str) -> None:
     with _memoria_guard:
         for clave in list(_memoria.keys()):

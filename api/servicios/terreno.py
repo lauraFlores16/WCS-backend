@@ -14,9 +14,17 @@ from urllib.parse import quote
 
 from django.conf import settings
 
-from ..lib.cache import con_cache_tolerante
+from ..lib.cache import con_cache_tolerante, sembrar
 from ..lib.cola import pedir
 from .grid import celda_en, obtener_indice
+
+# Terreno de Apolo que viaja con el repositorio. Ríos, caminos y relieve no
+# cambian de un día para otro, y en Render el disco se vacía en cada
+# despliegue: sin esto la primera simulación esperaba minutos a Overpass y el
+# frontend la cancelaba a los 180 s. Se generó desde la caché local el
+# 2026-10-30. Para forzar la descarga en vivo: TERRENO_SEMILLA=false.
+SEMILLA_DIR = Path(__file__).resolve().parent.parent / "datos" / "terreno_semilla"
+USAR_SEMILLA = os.environ.get("TERRENO_SEMILLA", "true").lower() not in ("0", "false", "no")
 
 URL_ELEVACION = "https://api.open-meteo.com/v1/elevation"
 
@@ -51,6 +59,12 @@ def _cargar_dem_disco() -> dict:
         print(f"[terreno] DEM en caché: {len(_dem)} celdas")
     except (OSError, ValueError):
         _dem = {}
+        if USAR_SEMILLA:
+            try:
+                _dem = json.loads((SEMILLA_DIR / "dem_apolo.json").read_text(encoding="utf-8"))
+                print(f"[terreno] DEM desde la semilla del repositorio: {len(_dem)} celdas")
+            except (OSError, ValueError):
+                pass
     return _dem
 
 
@@ -162,6 +176,26 @@ RESISTENCIA = {"rio": 0.0, "agua": 0.0, "quebrada": 0.45, "camino": 0.6, "desnud
 UMBRAL_BARRERA_DURA = 0.05
 
 
+_osm_sembrado = False
+
+
+def _sembrar_osm(clave: str) -> None:
+    """Si `clave` es la de la semilla (la caja de Apolo), la deja en caché."""
+    global _osm_sembrado
+    if _osm_sembrado or not USAR_SEMILLA or not clave.startswith("osm:"):
+        return
+    try:
+        semilla = json.loads((SEMILLA_DIR / "osm_apolo.json").read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        _osm_sembrado = True                     # no hay semilla: no reintentar
+        return
+    if semilla.get("clave") != clave:
+        return                                   # otra zona (p. ej. Rurrenabaque)
+    _osm_sembrado = True
+    if sembrar(clave, semilla["valor"]):
+        print(f"[terreno] capa OSM desde la semilla del repositorio: {len(semilla['valor'])} elementos")
+
+
 def obtener_terreno_osm(bbox: dict | None = None,
                         grid: list[dict] | None = None) -> dict:
     """Capa de terreno de OpenStreetMap.
@@ -173,6 +207,7 @@ def obtener_terreno_osm(bbox: dict | None = None,
     """
     b = bbox or obtener_indice()["bbox"]
     clave = f"osm:{b['sur']:.3f},{b['oeste']:.3f},{b['norte']:.3f},{b['este']:.3f}"
+    _sembrar_osm(clave)
 
     def producir():
         # El cuerpo va como application/x-www-form-urlencoded, así que la

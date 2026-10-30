@@ -45,7 +45,7 @@ import django  # noqa: E402
 django.setup()
 
 from api.motor import escenarios as esc  # noqa: E402
-from api.motor.automata import ejecutar_automata  # noqa: E402
+from api.motor.automata import CONSTANTES_POR_DEFECTO, ejecutar_automata  # noqa: E402
 from api.servicios import grid as grid_srv  # noqa: E402
 
 grid_srv.cargar()
@@ -85,6 +85,19 @@ def area(res):
     return ult["num_celdas_ardiendo"] + ult["num_celdas_quemadas"]
 
 
+# Comparaciones relativas: con 40 pasos (10 h) el frente v3 casi no sale del
+# foco y «más que / menos que» no distingue nada. Esas se miden a 72 h sobre el
+# escenario Crítico del catálogo, aplicado toda la corrida como en la pantalla.
+PASOS_72H = 72 * 4
+FONDO = [esc.crear_evento("viento_seco", paso_inicio=0)]
+FONDO[0]["duracion_pasos"] = None
+
+
+def correr_activo(guion=(), **params):
+    return ejecutar_automata(GRID, {**PARAMS, "num_iteraciones": PASOS_72H, **params},
+                             {"guion": FONDO + list(guion)})
+
+
 # ===========================================================================
 print("\n1. La refactorización no movió nada")
 # ===========================================================================
@@ -106,9 +119,10 @@ ok(perimetro(con_delta) == perimetro(con_delta2), "delta_humedad sigue siendo de
 ok(area(con_delta) < area(base),
    f"y más humedad quema menos: {area(con_delta)} < {area(base)} celdas")
 
-seco = ejecutar_automata(GRID, {**PARAMS, "delta_temperatura_c": 10}, {})
-ok(area(seco) > area(base),
-   f"+10 °C seca y quema más: {area(seco)} > {area(base)} celdas")
+activo = correr_activo()
+seco = correr_activo(delta_temperatura_c=10)
+ok(area(seco) > area(activo),
+   f"+10 °C seca y quema más (72 h sobre Crítico): {area(seco)} > {area(activo)} celdas")
 
 
 # ===========================================================================
@@ -195,17 +209,30 @@ ok(area(racha) > area(base),
    f"una racha de 14 m/s quema MÁS: {area(racha)} vs {area(base)} celdas "
    f"({(area(racha) / area(base) - 1) * 100:+.0f} %)")
 
-# El spotting es un suceso RARO: con las constantes por defecto salen 2–3
-# saltos por corrida, así que una sola semilla no demuestra nada —de hecho la
-# semilla de estas pruebas da 0 y me lo creí al principio—. Se mide sobre
-# cinco semillas, que es lo que separa el mecanismo de la casualidad.
+# El spotting está APAGADO por defecto (SPOTTING_PROB = 0,0, como la
+# calibración de Apolo): por paso y en corridas largas encadenaba cascadas.
+# El mecanismo sigue en el motor, así que se prueba activándolo a mano con el
+# valor histórico 0,015.
 SEMILLAS = (20260826, 111, 2024, 777, 31415)
+RACHA = [esc.crear_evento("racha_viento", paso_inicio=5, intensidad="extrema")]
+saltos_defecto = sum(
+    len(ejecutar_automata(GRID, {**PARAMS, "semilla": s}, {"guion": RACHA})["metadatos"]["eventos_spotting"])
+    for s in SEMILLAS)
+ok(saltos_defecto == 0,
+   f"por defecto no salta ninguna pavesa, ni con racha: {saltos_defecto}")
+
+# Con el spotting activo es un suceso RARO: salen 2–3 saltos por corrida, así
+# que una sola semilla no demuestra nada —de hecho la semilla de estas pruebas
+# da 0 y me lo creí al principio—. Se mide sobre cinco semillas, que es lo que
+# separa el mecanismo de la casualidad.
+CON_SPOTTING = {**CONSTANTES_POR_DEFECTO, "SPOTTING_PROB": 0.015}
 saltos_sin, saltos_con = 0, 0
 for s in SEMILLAS:
     p = {**PARAMS, "semilla": s}
-    saltos_sin += len(ejecutar_automata(GRID, dict(p), {})["metadatos"]["eventos_spotting"])
+    saltos_sin += len(ejecutar_automata(GRID, dict(p), {"constantes": CON_SPOTTING})
+                      ["metadatos"]["eventos_spotting"])
     saltos_con += len(ejecutar_automata(GRID, dict(p), {
-        "guion": [esc.crear_evento("racha_viento", paso_inicio=5, intensidad="extrema")]
+        "guion": RACHA, "constantes": CON_SPOTTING,
     })["metadatos"]["eventos_spotting"])
 ok(saltos_sin == 0 and saltos_con > 0,
    f"y desbloquea los saltos de pavesas: {saltos_sin} sin racha y {saltos_con} con ella, "
@@ -225,11 +252,11 @@ ok(area(lluvia) < area(base),
 
 # El caso que de verdad importa para la consola: el MISMO escenario inyectado
 # en dos pasos distintos tiene que dar resultados distintos.
-pronto = correr(guion=[esc.crear_evento("fin_temporada", paso_inicio=5)])
-tarde = correr(guion=[esc.crear_evento("fin_temporada", paso_inicio=25)])
+pronto = correr_activo(guion=[esc.crear_evento("fin_temporada", paso_inicio=12 * 4)])
+tarde = correr_activo(guion=[esc.crear_evento("fin_temporada", paso_inicio=60 * 4)])
 ok(area(pronto) < area(tarde),
-   f"y llegar pronto salva más que llegar tarde: paso 5 → {area(pronto)} celdas, "
-   f"paso 25 → {area(tarde)}")
+   f"y llegar pronto salva más que llegar tarde (72 h sobre Crítico): "
+   f"hora 12 → {area(pronto)} celdas, hora 60 → {area(tarde)}")
 
 
 # ===========================================================================

@@ -98,7 +98,13 @@ print("\nOBJ 3 — Modelo de simulación: integración y propagación")
 from api.motor.automata import (  # noqa: E402
     CONSTANTES_POR_DEFECTO as K, _construir_vecindad, ejecutar_automata,
 )
-from api.motor.parametros import _elegir_foco  # noqa: E402
+from api.motor.parametros import (  # noqa: E402
+    HORIZONTE_HORAS_POR_DEFECTO, MINUTOS_POR_ITERACION, _elegir_foco,
+)
+
+# El horizonte que usa la pantalla de Simulación. Con el motor v3 las 6 h de
+# antes no sacaban el fuego de la celda foco.
+PASOS = HORIZONTE_HORAS_POR_DEFECTO * 60 // MINUTOS_POR_ITERACION
 
 sel = _elegir_foco(G, None, [])
 ok(sel["origen"] in ("firms", "xgboost", "historico"),
@@ -113,7 +119,7 @@ ok(len(vec) == 8, "la vecindad es la de Moore, con 8 vecinos", f"{len(vec)}")
 
 r = ejecutar_automata(G, {
     "foco_fila": sel["celda"]["fila"], "foco_columna": sel["celda"]["columna"],
-    "p_base": 0.30, "num_iteraciones": 24, "minutos_por_iteracion": 15,
+    "p_base": 0.30, "num_iteraciones": PASOS, "minutos_por_iteracion": MINUTOS_POR_ITERACION,
     "multiplicador_viento": 1.0, "delta_humedad": 0.0,
     "delta_temperatura_c": 0.0, "semilla": 1,
 })
@@ -122,7 +128,7 @@ ok(ult["num_celdas_quemadas"] > 0,
    "la simulación produce una superficie de propagación",
    f"{ult['num_celdas_quemadas']} celdas · "
    f"{ult['num_celdas_quemadas'] * 0.25:.1f} km²")
-ok(len(r["iteraciones"]) == 25,
+ok(len(r["iteraciones"]) == PASOS + 1,
    "y devuelve la evolución paso a paso", f"{len(r['iteraciones'])} iteraciones")
 ok("constantes" in r["metadatos"],
    "el resultado incluye los parámetros con los que se obtuvo")

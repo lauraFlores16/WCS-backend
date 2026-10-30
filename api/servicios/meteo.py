@@ -34,7 +34,7 @@ def direccion_a_componentes(velocidad_kmh, direccion_grados) -> dict:
     return {"u": -vel * math.sin(rad), "v": -vel * math.cos(rad), "velocidad_ms": vel}
 
 
-def obtener_meteorologia(lat: float | None = None, lon: float | None = None, horas_adelante: int = 48) -> dict:
+def obtener_meteorologia(lat: float | None = None, lon: float | None = None, horas_adelante: int = 72) -> dict:
     lat = settings.APOLO["lat"] if lat is None else lat
     lon = settings.APOLO["lon"] if lon is None else lon
     clave = f"meteo:{lat:.2f},{lon:.2f}"
@@ -43,7 +43,7 @@ def obtener_meteorologia(lat: float | None = None, lon: float | None = None, hor
         url = (
             f"{BASE}?latitude={lat:.4f}&longitude={lon:.4f}"
             f"&current={VARS_ACTUALES}&hourly={VARS_HORARIAS}"
-            f"&past_days=2&forecast_days=3&timezone=America%2FLa_Paz"
+            f"&past_days=2&forecast_days=4&timezone=America%2FLa_Paz"
         )
         r = pedir(url, etiqueta="Open-Meteo")
         json_ = r.json()

@@ -26,7 +26,7 @@ from .motor.alertas_riesgo import calcular_alertas_riesgo
 from .motor.calibracion import calibrar
 from .motor.escenarios import REFERENCIAS as REFERENCIAS_ESCENARIOS
 from .motor.escenarios import listar as catalogo_escenarios
-from .motor.parametros import derivar_parametros
+from .motor.parametros import HORIZONTE_HORAS_POR_DEFECTO, derivar_parametros
 from .motor.simulacion import (
     AREA_POR_CELDA_HA,
     ejecutar_simulacion,
@@ -324,7 +324,7 @@ def simulacion_parametros_auto(request: HttpRequest):
         resultado = derivar_parametros(grid, {
             "foco": foco,
             "historicos": grid_srv.obtener_historicos(),
-            "horizonte_horas": _num(request.GET.get("horas"), 6),
+            "horizonte_horas": _num(request.GET.get("horas"), HORIZONTE_HORAS_POR_DEFECTO),
             "temporada": {
                 "incluir": request.GET.get("incluir_estacion") in ("1", "true"),
                 "temporada": request.GET.get("estacion", "auto"),

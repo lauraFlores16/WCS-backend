@@ -18,7 +18,10 @@ from ..servicios.grid import celda_mas_cercana, promedios_grid
 from ..servicios.meteo import indice_peligro, obtener_climatologia, obtener_meteorologia
 from .temporada import resolver_temporada
 
-HORIZONTE_HORAS_POR_DEFECTO = 6
+# El motor v3 avanza por velocidad: con condiciones medias (~12 m/h) cruzar una
+# celda de 500 m lleva ~40 h, y la calibración se hizo sobre ventanas de días.
+# Con 6 h el fuego nunca salía de la celda foco.
+HORIZONTE_HORAS_POR_DEFECTO = 72
 MINUTOS_POR_ITERACION = 15
 
 MESES = ["ene", "feb", "mar", "abr", "may", "jun", "jul", "ago", "sep", "oct", "nov", "dic"]

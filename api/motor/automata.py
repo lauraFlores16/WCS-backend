@@ -125,7 +125,10 @@ CONSTANTES_POR_DEFECTO = {
     "K_BARRERA": 1.0,
     # --- Spotting (igual que v2, con el signo N-S ya correcto) --------------
     "SPOTTING_ACTIVO": True,
-    "SPOTTING_PROB": 0.015,
+    # 0,0 como la calibración de Apolo. La probabilidad es POR PASO: en
+    # corridas de 72 h cada celda sortea cientos de veces y las pavesas
+    # encadenan una cascada (×11 de área en el escenario Crítico).
+    "SPOTTING_PROB": 0.0,
     "SPOTTING_VIENTO_MIN": 1.0,
     "SPOTTING_DIST_MIN": 2,
     "SPOTTING_DIST_MAX": 6,

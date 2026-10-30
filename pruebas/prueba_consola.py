@@ -71,7 +71,15 @@ analista = entrar("analista@demo.sipro.com")
 admin = entrar("admin@demo.sipro.com")
 
 PARAMS = {"foco_fila": 83, "foco_columna": 126, "p_base": 0.45,
-          "num_iteraciones": 30, "minutos_por_iteracion": 15, "semilla": 20260826}
+          "num_iteraciones": 72 * 4, "minutos_por_iteracion": 15, "semilla": 20260826}
+
+# Con el motor v3 y condiciones neutras el frente apenas sale del foco en 72 h
+# y «con tormenta quema menos» no tiene con qué compararse. La corrida arranca
+# con el escenario Crítico del catálogo como fondo, toda la corrida, como lo
+# aplica la pantalla de Simulación; la tormenta se inyecta encima.
+from api.motor.escenarios import crear_evento  # noqa: E402
+
+FONDO = [{**crear_evento("viento_seco", paso_inicio=0), "duracion_pasos": None}]
 
 
 def post(cli, ruta, datos=None):
@@ -99,7 +107,7 @@ ok(r.status_code == 401, f"y sin sesión tampoco ({r.status_code})")
 # ===========================================================================
 print("\n2. Abrir la consola y avanzar por tandas")
 # ===========================================================================
-r = post(analista, "/api/simulacion/consola", {"parametros": PARAMS, "pasos_iniciales": 6, "usar_terreno": False})
+r = post(analista, "/api/simulacion/consola", {"parametros": PARAMS, "guion": FONDO, "pasos_iniciales": 6, "usar_terreno": False})
 ok(r.status_code == 200, f"la consola arranca ({r.status_code})", r.content[:300].decode())
 s = cuerpo(r)
 sid = s["sesion_id"]
@@ -126,7 +134,9 @@ r = post(analista, f"/api/simulacion/consola/{sid}/inyectar",
          {"escenario": "tormenta"})
 ok(r.status_code == 200, f"se inyecta la tormenta ({r.status_code})", r.content[:300].decode())
 s = cuerpo(r)
-ok(len(s["guion"]) == 1, "queda un suceso en el guion")
+ok([e["id"] for e in s["guion"]] == ["viento_seco", "tormenta"],
+   "la tormenta queda en el guion, detrás del fondo Crítico",
+   str([e["id"] for e in s["guion"]]))
 ok(s["evento"]["paso_inicio"] == 12,
    f"que empieza en el paso actual, no antes: {s['evento']['paso_inicio']}")
 ok(s["resumen"]["celdas_quemadas"] == quemadas_en_12,
@@ -167,7 +177,8 @@ ok(any(e["id"] == "tormenta" for e in primera_nueva["eventos_activos"]),
    f"con el suceso a la vista: {[e['nombre'] for e in primera_nueva['eventos_activos']]}")
 
 # La misma corrida SIN tormenta, para tener con qué comparar.
-r = post(analista, "/api/simulacion/consola", {"parametros": PARAMS, "usar_terreno": False})
+r = post(analista, "/api/simulacion/consola",
+         {"parametros": PARAMS, "guion": FONDO, "usar_terreno": False})
 sid2 = cuerpo(r)["sesion_id"]
 r = post(analista, f"/api/simulacion/consola/{sid2}/avanzar", {"completar": True})
 sin_tormenta = cuerpo(r)["resumen"]["celdas_quemadas"]
@@ -196,7 +207,7 @@ ok(len(mio) == 1, f"y aparece en el Historial ({len(lista)} escenarios en total)
 r = analista.get(f"/api/escenarios/{guardado['escenario_id']}")
 detalle = cuerpo(r)
 guion_guardado = (detalle.get("metadatos_motor") or {}).get("guion") or []
-ok(len(guion_guardado) == 1 and guion_guardado[0]["id"] == "tormenta",
+ok([g["id"] for g in guion_guardado] == ["viento_seco", "tormenta"],
    f"el guion viaja DENTRO del escenario guardado: {[g['nombre'] for g in guion_guardado]}",
    json.dumps(detalle.get("metadatos_motor", {}))[:300])
 

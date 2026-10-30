@@ -33,6 +33,7 @@ from api.motor.automata import (  # noqa: E402
     CONSTANTES_POR_DEFECTO as K, _construir_vecindad, _factor_pendiente,
     _factor_viento, ejecutar_automata,
 )
+from api.motor.parametros import HORIZONTE_HORAS_POR_DEFECTO  # noqa: E402
 from api.servicios import grid as grid_srv  # noqa: E402
 
 fallos = 0
@@ -46,6 +47,14 @@ def ok(cond, titulo, extra=""):
         fallos += 1
         print(f"  ✗ {titulo}" + (f" — {extra}" if extra else ""))
     return bool(cond)
+
+
+# --- Horizonte -------------------------------------------------------------
+# El motor v3 avanza por velocidad: en condiciones medias cruzar una celda de
+# 500 m lleva ~40 h. Los horizontes de v2 (2–10 h) no salían nunca del foco,
+# así que se expresan en horas y se usa el horizonte de la pantalla (72 h).
+PASOS_HORA = 4                       # 15 min por paso
+HORIZONTE_PASOS = HORIZONTE_HORAS_POR_DEFECTO * PASOS_HORA
 
 
 # --- Rejilla sintética: terreno uniforme, para aislar cada factor ----------
@@ -65,7 +74,7 @@ def rejilla(nf=70, nc=70, **campos):
 def corrida(grid, semillas=(1, 2, 3, 4, 5), opciones=None, **params):
     p = {"foco_fila": 35, "foco_columna": 35,
          "focos_iniciales": [{"fila": 35, "columna": 35}],
-         "p_base": 0.30, "num_iteraciones": 24, "minutos_por_iteracion": 15,
+         "p_base": 0.30, "num_iteraciones": HORIZONTE_PASOS, "minutos_por_iteracion": 15,
          "multiplicador_viento": 1.0, "delta_humedad": 0.0,
          "delta_temperatura_c": 0.0}
     p.update(params)
@@ -76,10 +85,25 @@ def corrida(grid, semillas=(1, 2, 3, 4, 5), opciones=None, **params):
     return st.mean(vals)
 
 
+# --- Fondo activo para las comparaciones relativas ---------------------------
+# Con la rejilla neutra (NDVI 0,32, HR 60 %, sin viento) el frente v3 avanza
+# 1–2 celdas en 72 h y cualquier comparación sale «1 → 1». Las comparaciones
+# relativas (más/menos que) se hacen sobre el escenario Crítico del catálogo,
+# tal como lo aplica la pantalla de Simulación: toda la corrida. No se inventa
+# ninguna condición nueva; se usa el peor caso que el sistema ya ofrece.
+from api.motor.escenarios import CATALOGO as _CATALOGO  # noqa: E402
+
+_VIENTO_SECO = next(e for e in _CATALOGO if e["id"] == "viento_seco")
+FONDO = [{"id": "viento_seco", "nombre": _VIENTO_SECO["nombre"],
+          "familia": _VIENTO_SECO["familia"], "paso_inicio": 0,
+          "duracion_pasos": None, "intensidad": None,
+          "efectos": dict(_VIENTO_SECO["efectos"])}]
+
+
 def estados(grid, opciones=None, **params):
     p = {"foco_fila": 35, "foco_columna": 35,
          "focos_iniciales": [{"fila": 35, "columna": 35}],
-         "p_base": 0.30, "num_iteraciones": 24, "minutos_por_iteracion": 15,
+         "p_base": 0.30, "num_iteraciones": HORIZONTE_PASOS, "minutos_por_iteracion": 15,
          "multiplicador_viento": 1.0, "delta_humedad": 0.0,
          "delta_temperatura_c": 0.0, "semilla": 7}
     p.update(params)
@@ -91,6 +115,7 @@ print("PRUEBAS DE SIMULACIÓN")
 print("=" * 70)
 
 G = rejilla()
+Ge = rejilla(viento_u=1.2, viento_v=0.4)   # Crítico sopla hacia el ENE
 
 # ---------------------------------------------------------------------------
 print("\n1. Integridad del estado")
@@ -115,28 +140,28 @@ fuera = {c["celda_id"] for c in its[-1]["celdas"]} - ids_grid
 ok(not fuera, "ninguna celda del resultado está fuera del grid",
    f"{len(fuera)} fuera")
 
-ok(its[-1]["iteracion"] == 24, "llega al horizonte pedido",
+ok(its[-1]["iteracion"] == HORIZONTE_PASOS, "llega al horizonte pedido",
    f"paso {its[-1]['iteracion']}")
 
 # ---------------------------------------------------------------------------
 print("\n2. Monotonía frente a los parámetros")
 # ---------------------------------------------------------------------------
-pb = [(p, corrida(G, p_base=p)) for p in (0.10, 0.20, 0.30, 0.45)]
+pb = [(p, corrida(Ge, guion=FONDO, p_base=p)) for p in (0.10, 0.20, 0.30, 0.45)]
 ok(all(b[1] >= a[1] for a, b in zip(pb, pb[1:])),
    "más p_base quema más",
    " · ".join(f"{p}→{v:.0f}" for p, v in pb))
 
-hz = [(n, corrida(G, num_iteraciones=n)) for n in (8, 16, 24, 40)]
+hz = [(h, corrida(Ge, guion=FONDO, num_iteraciones=h * PASOS_HORA)) for h in (24, 48, 72, 120)]
 ok(all(b[1] >= a[1] for a, b in zip(hz, hz[1:])),
    "más pasos queman más",
-   " · ".join(f"{n}→{v:.0f}" for n, v in hz))
+   " · ".join(f"{h} h→{v:.0f}" for h, v in hz))
 
-hum = [(h, corrida(G, delta_humedad=h)) for h in (-0.10, 0.0, 0.10)]
+hum = [(h, corrida(Ge, guion=FONDO, delta_humedad=h)) for h in (-0.10, 0.0, 0.10)]
 ok(hum[0][1] >= hum[1][1] >= hum[2][1],
    "más humedad quema menos",
    " · ".join(f"{h:+.2f}→{v:.0f}" for h, v in hum))
 
-tmp = [(t, corrida(G, delta_temperatura_c=t)) for t in (-5, 0, 10)]
+tmp = [(t, corrida(Ge, guion=FONDO, delta_temperatura_c=t)) for t in (-5, 0, 10)]
 ok(tmp[0][1] <= tmp[1][1] <= tmp[2][1],
    "más temperatura quema más",
    " · ".join(f"{t:+d}→{v:.0f}" for t, v in tmp))
@@ -144,8 +169,8 @@ ok(tmp[0][1] <= tmp[1][1] <= tmp[2][1],
 # ---------------------------------------------------------------------------
 print("\n3. Focos iniciales")
 # ---------------------------------------------------------------------------
-uno = corrida(G, focos_iniciales=[{"fila": 35, "columna": 35}])
-cuatro = corrida(G, focos_iniciales=[{"fila": 30, "columna": 30},
+uno = corrida(Ge, guion=FONDO, focos_iniciales=[{"fila": 35, "columna": 35}])
+cuatro = corrida(Ge, guion=FONDO, focos_iniciales=[{"fila": 30, "columna": 30},
                                     {"fila": 30, "columna": 42},
                                     {"fila": 42, "columna": 30},
                                     {"fila": 42, "columna": 42}])
@@ -166,7 +191,7 @@ print("\n4. Dirección: viento y pendiente")
 # ---------------------------------------------------------------------------
 # Viento fuerte hacia el ESTE: el frente tiene que descentrarse al este.
 Gv = rejilla(viento_u=6.0, viento_v=0.0)
-rv = estados(Gv, num_iteraciones=30, semilla=11)
+rv = estados(Gv, semilla=11, guion=FONDO)
 qs = [c for c in rv["iteraciones"][-1]["celdas"]
       if c["estado"] in ("quemada", "ardiendo")]
 if ok(len(qs) > 20, "con viento el frente avanza", f"{len(qs)} celdas"):
@@ -193,30 +218,34 @@ ok(1 / K["PENDIENTE_MAX"] <= _factor_pendiente(9999, d, K) <= K["PENDIENTE_MAX"]
    "el factor de pendiente queda acotado",
    f"límite {K['PENDIENTE_MAX']}")
 
-# El viento solo ayuda a favor, nunca frena en contra.
+# v3: el viento acelera a favor, FRENA en contra y no influye de costado.
 u, v = 8.0, 0.0
 ok(_factor_viento(0, 1, u, v, K) > 1.0, "a favor del viento el factor sube")
-ok(abs(_factor_viento(0, -1, u, v, K) - 1.0) < 1e-9,
-   "en contra del viento el factor es 1, no menor",
-   f"{_factor_viento(0, -1, u, v, K):.4f}")
+en_contra = _factor_viento(0, -1, u, v, K)
+ok(1 / K["VIENTO_MAX"] <= en_contra < 1.0,
+   "en contra del viento el factor frena, acotado por VIENTO_MAX",
+   f"{en_contra:.4f}")
+ok(abs(_factor_viento(1, 0, u, v, K) - 1.0) < 1e-9,
+   "de costado el viento no influye", f"{_factor_viento(1, 0, u, v, K):.4f}")
 
 # ---------------------------------------------------------------------------
 print("\n5. Barreras y resistencia del terreno")
 # ---------------------------------------------------------------------------
-barr = {c["id"] for c in G if c["columna"] == 45}
-sin_b = corrida(G, semillas=(1, 2, 3), num_iteraciones=40)
-con_b = corrida(G, semillas=(1, 2, 3), num_iteraciones=40,
+barr = {c["id"] for c in Ge if c["columna"] == 45}
+sin_b = corrida(Ge, semillas=(1, 2, 3), num_iteraciones=120 * PASOS_HORA, guion=FONDO)
+con_b = corrida(Ge, semillas=(1, 2, 3), num_iteraciones=120 * PASOS_HORA, guion=FONDO,
                 opciones={"barreras_extra": barr})
 ok(con_b < sin_b, "una barrera dura reduce la propagación",
    f"{sin_b:.0f} → {con_b:.0f}")
 
-rb = estados(G, num_iteraciones=40, opciones={"barreras_extra": barr})
+rb = estados(Ge, num_iteraciones=120 * PASOS_HORA, guion=FONDO,
+            opciones={"barreras_extra": barr})
 tocadas = {c["celda_id"] for c in rb["iteraciones"][-1]["celdas"]
            if c["estado"] in ("quemada", "ardiendo")} & barr
 ok(not tocadas, "ninguna celda barrera llega a arder", f"{len(tocadas)} ardieron")
 
-res = {c["id"]: 0.6 for c in G}
-serie = [corrida(G, semillas=(1, 2, 3),
+res = {c["id"]: 0.6 for c in Ge}
+serie = [corrida(Ge, semillas=(1, 2, 3), guion=FONDO,
                  opciones={"constantes": {**K, "K_BARRERA": kb},
                            "resistencia_extra": res})
          for kb in (0.0, 0.5, 1.0)]
@@ -256,14 +285,14 @@ print("\n7. Lluvia: frena y apaga")
 serie_lluvia = [{"hora": f"2026-01-01T{h:02d}:00", "temperatura_c": 25,
                  "humedad_relativa": 55, "viento_ms": 1.0,
                  "precipitacion_mm": 12.0, "vpd_kpa": 0.8} for h in range(12)]
-sin_ll = corrida(G, semillas=(1, 2, 3))
-con_ll = corrida(G, semillas=(1, 2, 3),
+sin_ll = corrida(Ge, semillas=(1, 2, 3), guion=FONDO)
+con_ll = corrida(Ge, semillas=(1, 2, 3), guion=FONDO,
                  opciones={"serie_ambiental": serie_lluvia})
 ok(con_ll < sin_ll, "con lluvia sostenida se quema menos",
    f"{sin_ll:.0f} → {con_ll:.0f}")
 
-rll = estados(G, opciones={"serie_ambiental": serie_lluvia})
-apagadas = sum(it.get("celdas_apagadas_lluvia", 0) or 0 for it in rll["iteraciones"])
+rll = estados(Ge, guion=FONDO, opciones={"serie_ambiental": serie_lluvia})
+apagadas = rll["metadatos"]["celdas_apagadas_por_lluvia"]
 ok(apagadas > 0 or con_ll < sin_ll,
    "la lluvia apaga celdas o al menos frena el avance",
    f"{apagadas} apagadas")
@@ -298,9 +327,9 @@ ok(sel_m["origen"] == "manual", "el foco manual tiene prioridad sobre XGBoost",
 import inspect  # noqa: E402
 
 fuente_paso = inspect.getsource(mod)
-i = fuente_paso.find("p = (p_base")
-linea = fuente_paso[i:fuente_paso.find("\n", i + 200)]
-ok("prob_ignicion" not in linea,
+i = fuente_paso.find("ros = (ros_base")
+linea = fuente_paso[i:fuente_paso.find("\n", i + 200)] if i >= 0 else ""
+ok(linea and "prob_ignicion" not in linea,
    "prob_ignicion NO aparece en la probabilidad de propagación")
 
 # Dos focos con probabilidad muy distinta, mismo p_base: el resultado depende
@@ -321,8 +350,8 @@ ok(True, "con p_base fijo, la propagación no la decide prob_ignicion",
 # ---------------------------------------------------------------------------
 print("\n9. Reproducibilidad y dispersión")
 # ---------------------------------------------------------------------------
-a = estados(G, semilla=42)["iteraciones"][-1]
-b = estados(G, semilla=42)["iteraciones"][-1]
+a = estados(Ge, semilla=42, guion=FONDO)["iteraciones"][-1]
+b = estados(Ge, semilla=42, guion=FONDO)["iteraciones"][-1]
 ok(a["num_celdas_quemadas"] == b["num_celdas_quemadas"],
    "misma semilla, mismo resultado", f"{a['num_celdas_quemadas']}")
 
@@ -330,7 +359,7 @@ pa = {c["celda_id"] for c in a["celdas"] if c["estado"] == "quemada"}
 pb_ = {c["celda_id"] for c in b["celdas"] if c["estado"] == "quemada"}
 ok(pa == pb_, "y el perímetro es idéntico celda a celda", f"{len(pa)} celdas")
 
-vals = [estados(G, semilla=s)["iteraciones"][-1]["num_celdas_quemadas"]
+vals = [estados(Ge, semilla=s, guion=FONDO)["iteraciones"][-1]["num_celdas_quemadas"]
         for s in range(1, 11)]
 cv = st.pstdev(vals) / max(st.mean(vals), 1e-9) * 100
 ok(len(set(vals)) > 1, "distintas semillas dan distintos resultados",
@@ -362,27 +391,31 @@ PRESETS = [
     ("Crítico",      {}, "viento_seco"),
 ]
 
-Ge = rejilla(viento_u=1.2, viento_v=0.4)
 res_esc = {}
 print(f"  {'ESCENARIO':<14}{'CELDAS':>9}{'vs BASE':>10}")
 print("  " + "-" * 33)
 for nombre, extra, evento in PRESETS:
-    v = corrida(Ge, semillas=(1, 2, 3, 4, 5), num_iteraciones=32,
+    v = corrida(Ge, semillas=(1, 2, 3, 4, 5),
                 guion=guion_de(evento), **extra)
     res_esc[nombre] = v
     base_v = res_esc["Base"]
-    delta = "" if nombre == "Base" else f"{(v/base_v-1)*100:+.0f} %"
+    delta = "" if nombre == "Base" or not base_v else f"{(v/base_v-1)*100:+.0f} %"
     print(f"  {nombre:<14}{v:>9.0f}{delta:>10}")
 
-ok(res_esc["Lluvia"] < res_esc["Base"],
-   "Lluvia frena respecto de Base",
-   f"{res_esc['Base']:.0f} → {res_esc['Lluvia']:.0f}")
-ok(res_esc["Viento alto"] > res_esc["Base"],
-   "Viento alto acelera respecto de Base",
-   f"{res_esc['Base']:.0f} → {res_esc['Viento alto']:.0f}")
-ok(res_esc["Baja humedad"] > res_esc["Base"],
-   "Baja humedad acelera respecto de Base",
-   f"{res_esc['Base']:.0f} → {res_esc['Baja humedad']:.0f}")
+critico_solo = res_esc["Crítico"]
+critico_lluvia = corrida(Ge, semillas=(1, 2, 3, 4, 5), guion=FONDO + guion_de("lluvia_moderada"))
+ok(critico_lluvia < critico_solo,
+   "Lluvia frena (sobre Crítico)",
+   f"{critico_solo:.0f} → {critico_lluvia:.0f}")
+viento_base = corrida(Gv, semillas=(1, 2, 3, 4, 5))
+viento_alto = corrida(Gv, semillas=(1, 2, 3, 4, 5), multiplicador_viento=1.5)
+ok(viento_alto > viento_base,
+   "Viento alto acelera (rejilla con viento de 6 m/s; Crítico fija el viento)",
+   f"{viento_base:.0f} → {viento_alto:.0f}")
+critico_seco = corrida(Ge, semillas=(1, 2, 3, 4, 5), guion=FONDO, delta_humedad=-0.10)
+ok(critico_seco > critico_solo,
+   "Baja humedad acelera (sobre Crítico)",
+   f"{critico_solo:.0f} → {critico_seco:.0f}")
 ok(res_esc["Crítico"] > res_esc["Base"],
    "Crítico es más severo que Base",
    f"{res_esc['Base']:.0f} → {res_esc['Crítico']:.0f}")
@@ -405,14 +438,15 @@ ok(not sin_just, "los 12 escenarios del catálogo traen justificación",
    f"{len(CATALOGO)} escenarios" if not sin_just else ", ".join(sin_just))
 
 # Inyectar a mitad de corrida no reescribe lo anterior.
-g_tormenta = [{**CAT["tormenta"], "paso_inicio": 12, "duracion_pasos": None,
+PASO_TORMENTA = 24 * PASOS_HORA
+g_tormenta = [{**CAT["tormenta"], "paso_inicio": PASO_TORMENTA, "duracion_pasos": None,
                "intensidad": None, "efectos": dict(CAT["tormenta"]["efectos"])}]
-r_sin = estados(Ge, num_iteraciones=32)
-r_con = estados(Ge, num_iteraciones=32, guion=g_tormenta)
+r_sin = estados(Ge, guion=FONDO)
+r_con = estados(Ge, guion=FONDO + g_tormenta)
 antes_ig = all(
     a["num_celdas_quemadas"] == b["num_celdas_quemadas"]
-    for a, b in zip(r_sin["iteraciones"][:12], r_con["iteraciones"][:12]))
-ok(antes_ig, "inyectar en el paso 12 no altera los pasos 0-11")
+    for a, b in zip(r_sin["iteraciones"][:PASO_TORMENTA], r_con["iteraciones"][:PASO_TORMENTA]))
+ok(antes_ig, "inyectar a las 24 h no altera las horas anteriores")
 ok(r_con["iteraciones"][-1]["num_celdas_quemadas"]
    < r_sin["iteraciones"][-1]["num_celdas_quemadas"],
    "y sí cambia el resultado final",
@@ -423,11 +457,11 @@ ok(r_con["iteraciones"][-1]["num_celdas_quemadas"]
 def con_lluvia_en(paso):
     g = [{**CAT["lluvia_moderada"], "paso_inicio": paso, "duracion_pasos": None,
           "intensidad": None, "efectos": dict(CAT["lluvia_moderada"]["efectos"])}]
-    return corrida(Ge, semillas=(1, 2, 3), num_iteraciones=32, guion=g)
+    return corrida(Ge, semillas=(1, 2, 3), guion=FONDO + g)
 
-pronto, tarde = con_lluvia_en(5), con_lluvia_en(25)
+pronto, tarde = con_lluvia_en(12 * PASOS_HORA), con_lluvia_en(60 * PASOS_HORA)
 ok(pronto < tarde, "la lluvia temprana salva más superficie que la tardía",
-   f"paso 5 → {pronto:.0f} celdas · paso 25 → {tarde:.0f}")
+   f"hora 12 → {pronto:.0f} celdas · hora 60 → {tarde:.0f}")
 
 
 print("\n" + "=" * 70)
